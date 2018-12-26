@@ -55,12 +55,21 @@ class WAD
 
 			read_header();
 
-			// Pre-allocate directory since we know its size from the header
+			// Pre-allocate directory since we know its size from the header and then read it
 			m_directory.reserve(m_wad_header.lump_count);
 			read_directory();
 
+      // Pre-allocate the 14 palettes that original DOOM uses and read them
+      m_palettes.reserve(14);
 			read_palettes();
+      std::cout << "Read " << m_palettes.size() << " palettes...\n";
 			write_palettes();
+
+      // Pre-allocate the 34 colormaps that original DOOM uses and read them
+      m_colormaps.reserve(34);
+      read_colormaps();
+      std::cout << "Read " << m_colormaps.size() << " color maps...\n";
+      write_colormaps();
 		}
 
 		friend std::ostream& operator<<(std::ostream& rOs, const WAD& rWad)
@@ -183,6 +192,53 @@ class WAD
 				writer_.write<WADPaletteColor>(m_palettes[i], 16, 16, "palette" + std::to_string(i) + ".ppm");
 		}
 
+    void read_colormaps()
+    {
+      assert(m_wad_data);
+      assert(m_lump_map.find("COLORMAP") != m_lump_map.end());
+
+      // Color maps are found in the COLORMAP lump. There are 34 color maps, each is 256 bytes (each
+      // byte in each color map indicates the number of the palette color to which the original color
+      // gets mapped, e.g., byte 2 in color map 3 indicates to which original color 2 gets mapped).
+
+      WADEntry colormaps_ = m_directory[m_lump_map["COLORMAP"]];
+
+      m_offset = colormaps_.offset;
+      while (m_offset < colormaps_.offset + colormaps_.size)
+      {
+        std::vector<uint8_t> colormap_(256);
+
+        for (unsigned int i = 0; i < 256; ++i)
+          colormap_[i] = m_wad_data[m_offset++];
+
+        m_colormaps.push_back(colormap_);
+      }
+    }
+
+    void write_colormaps()
+    {
+      assert(m_colormaps.size() != 0);
+
+      PPMWriter writer_;
+
+      std::vector<WADPaletteColor> colormap_img_(256 * m_palettes.size() * m_colormaps.size());
+      const unsigned int width_ = 256;
+      const unsigned int height_ = m_colormaps.size() * m_palettes.size();
+
+      for (unsigned int i = 0; i < m_colormaps.size(); ++i)
+      {
+        for (unsigned int k = 0; k < m_palettes.size(); ++k)
+        {
+          for (unsigned int l = 0; l < 256; ++l)
+          {
+            colormap_img_[((k * m_colormaps.size()) + i) * 256 + l] = m_palettes[k][(unsigned int)m_colormaps[i][l]];
+          }
+        }
+      }
+
+      writer_.write<WADPaletteColor>(colormap_img_, m_colormaps.size()  * m_palettes.size(), 256, "colormaps.ppm");
+    }
+
 		unsigned int m_offset;
 		std::unique_ptr<uint8_t[]> m_wad_data;
 
@@ -190,6 +246,7 @@ class WAD
 		std::vector<WADEntry> m_directory;
 		std::map<std::string, unsigned int> m_lump_map; 
 		std::vector<std::vector<WADPaletteColor>> m_palettes;
+    std::vector<std::vector<uint8_t>> m_colormaps;
 };
 
 #endif
