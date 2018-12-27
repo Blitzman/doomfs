@@ -4,10 +4,11 @@
     1. [WAD File Format and Data Types](#wad-file-format-and-data-types)
     2. [Loading the WAD File](#loading-the-wad-file)
     3. [Reader Functions for WAD Files](#reader-functions-for-wad-files)
-    4. [Reading the Header](#reading-the-header)
-    5. [Reading the Directory](#reading-the-directory)
-    6. [Reading Palettes](#reading-palettes)
-    7. [Reading Colormaps](#reading-colormaps)
+    4. [Header](#header)
+    5. [Directory](#directory)
+    6. [Palettes](#palettes)
+    7. [Colormaps](#colormaps)
+    8. [Graphics](#graphics)
 2. References
 
 ## WAD File Parsing
@@ -63,15 +64,17 @@ We need five basic functions to read all the data types from the WAD files. Thes
 Shorts are read using the `short read_short()` and `unsigned short read_ushort()` functions. Both of them apply the same logic: they get two consecutive bytes from the WAD data pointer at the specified location, e.g., `0xAABB` in Big Endian, and then shift the bytes to generate a `0xBBAA` Little Endian representation for the short which is returned by the function.
 
 ```c++
-short read_short(const std::unique_ptr<uint8_t[]> & rpData, unsigned int offset)
+short read_short(const std::unique_ptr<uint8_t[]> & rpData, unsigned int & offset)
 {
 	short tmp_ = (rpData[offset + 1] << 8) | rpData[offset];
+  offset += 2;
 	return tmp_;
 }
 
-unsigned short read_ushort(const std::unique_ptr<uint8_t[]> rpData, unsigned int offset)
+unsigned short read_ushort(const std::unique_ptr<uint8_t[]> & rpData, unsigned int & offset)
 {
 	unsigned short tmp_ = (rpData[offset + 1] << 8) | rpData[offset];
+  offset += 2;
 	return tmp_;
 }
 ```
@@ -79,23 +82,23 @@ unsigned short read_ushort(const std::unique_ptr<uint8_t[]> rpData, unsigned int
 The same logic but extended to four bytes instead of two is applied by the integer reading functions `int read_int()` and `unsigned int read_uint()`:
 
 ```c++
-int read_int(const std::unique_ptr<uint8_t[]> & rpData, unsigned int offset)
+int read_int(const std::unique_ptr<uint8_t[]> & rpData, unsigned int & offset)
 {
 	int tmp_ = (rpData[offset + 3] << 24) |
 		(rpData[offset + 2] << 16)	|
 		(rpData[offset + 1] << 8) |
 		rpData[offset];
-
+  offset += 2;
 	return tmp_;
 }
 
-unsigned int read_uint(const std::unique_ptr<uint8_t[]> & rpData, unsigned int offset)
+unsigned int read_uint(const std::unique_ptr<uint8_t[]> & rpData, unsigned int & offset)
 {
 	unsigned int tmp_ = (rpData[offset + 3] << 24) |
 		(rpData[offset + 2] << 16) |
 		(rpData[offset + 1] << 8) |
 		rpData[offset];
-
+  offset += 2;
 	return tmp_;
 }
 ```
@@ -106,20 +109,22 @@ The last helper function to read data from the WAD data pointer is the one to re
 void copy_and_capitalize_buffer(
 	std::string & rDst,
 	const std::unique_ptr<uint8_t[]> & rpSrc,
-	unsigned int offset,
+	unsigned int & offset,
 	unsigned int srcLength)
 {
 	rDst = "";
 
 	for (unsigned int i = 0; i < srcLength && rpSrc[offset + i] != 0; ++i)
 		rDst += toupper(rpSrc[offset + i]);
+
+  offset += srcLength;
 }
 
 ```
 
 All those methods are implemented in the `include/readers.hpp` header. Using those methods, we will be able to parse the whole WAD file and extract its contents.
 
-### Reading the Header
+### Header
 
 The WAD header is the first thing that appears at the beginning of a WAD file. It consist of a sequence of 12 bytes divided into three 4-byte parts. Such parts are the following ones:
 
@@ -153,13 +158,8 @@ void read_header()
 	assert(m_wad_data);
 
 	copy_and_capitalize_buffer(m_wad_header.type, m_wad_data, m_offset, WAD_HEADER_TYPE_LENGTH);
-	m_offset += WAD_HEADER_TYPE_LENGTH;
-
 	m_wad_header.lump_count = read_uint(m_wad_data, m_offset);
-	m_offset += WAD_HEADER_LUMPCOUNT_LENGTH;
-
 	m_wad_header.directory_offset = read_uint(m_wad_data, m_offset);
-	m_offset += WAD_HEADER_OFFSET_LENGTH;
 }
 ```
 
@@ -172,9 +172,9 @@ Lump Count: 1264
 Directory Offset: 4175796
 ```
 
-### Reading the Directory
+### Directory
 
-The LUMP DIRECTORY starts at the byte offset specified in the header. The DIRECTORY has a 16 bytes ENTRY for each LUMP and it extends until the end of the file. Each ENTRY consists of three parts:
+The DIRECTORY LUMP starts at the byte offset specified in the header. The DIRECTORY has a 16 bytes ENTRY for each LUMP and it extends until the end of the file. Each ENTRY consists of three parts:
 
 - (4 bytes) An unsigned integer which indicates the file offset to the start of the LUMP.
 - (4 bytes) Another unsigned integer that tells the size (in bytes) of the LUMP.
@@ -204,11 +204,8 @@ void read_directory()
   {
     WADEntry entry_;
     entry_.offset = read_uint(m_wad_data, m_offset);
-    m_offset += WAD_ENTRY_OFFSET_LENGTH;
     entry_.size = read_uint(m_wad_data, m_offset);
-    m_offset += WAD_ENTRY_SIZE_LENGTH;
-    copy_and_capitalize_buffer(entry_.name, m_wad_data, m_offset, 8);
-    m_offset += WAD_ENTRY_NAME_LENGTH;
+    copy_and_capitalize_buffer(entry_.name, m_wad_data, m_offset, WAD_ENTRY_NAME_LENGTH);
 
     m_directory.push_back(entry_);
     m_lump_map.insert(std::pair<std::string, unsigned int>(entry_.name, i));
@@ -216,7 +213,7 @@ void read_directory()
 }
 ```
 
-### Reading Paletes
+### Palettes
 
 Palettes are stored in the PLAYPAL LUMP. Such LUMP consists of fourteen 256-color palette. Since each RGB triplet takes three bytes (one for each channel which can be in the range [0, 255]), each palette takes 768 bytes in the LUMP. This means that the PLAYPAL LUMP takes 10752 bytes in total. For more information see [2] chapter 8-1.
 
@@ -269,7 +266,7 @@ We also coded a brief procedure, namely `void write_palettes()`, which takes eac
 |![palette8](img/palette8.png)|![palette9](img/palette9.png)|![palette10](img/palette10.png)|![palette11](img/palette11.png)|
 |![palette12](img/palette12.png)|![palette13](img/palette13.png)| | |
 
-### Reading Colormaps
+### Colormaps
 
 The COLORMAP LUMP contains 34 color maps that map colors from palettes down in brightness. Each one of them is 256 bytes long so that each byte indexes pixels whithin a palette, i.e., the second byte of the first color map applied to the third palette indicates which pixel within that palette corresponds to the second position of the very same palette. Color maps were mainly used in DOOM for sector brightness (being color map 0 the brightest one and 31 the darkest). See [4] for a more detailed explanation of how color maps work.
 
@@ -299,6 +296,108 @@ void read_colormaps()
 We also coded a brief procedure, namely `void write_colormaps()`, which applies all the colormaps to each palette and produces a PPM image that combines all of them. Each row is a palette after applying a color map. For instance, the first 34 rows represent the 34 color maps applied to the first palette. We also scaled the output to 200% the original size and converted it to PNG using `mogrify -scale 200% colormaps.ppm` and `convert colormaps.ppm colormaps.png` respectively. The resulting image is shown below:
 
 ![colormaps](img/colormaps.png)
+
+### Graphics
+
+```c++
+struct WADSprite
+{
+  unsigned int width;
+  unsigned int height;
+  unsigned int left_offset;
+  unsigned int top_offset;
+  std::vector<WADSpritePost> posts;
+};
+```
+
+```c++
+struct WADSpritePost
+{
+  uint8_t col;
+  uint8_t row;
+  uint8_t size;
+  std::vector<uint8_t> pixels;
+};
+```
+
+```c++
+void read_sprites()
+{
+  assert(m_wad_data);
+
+  std::vector<std::string> sprite_names_ { "SUITA0", "TROOA1", "BKEYA0" };
+
+  for (std::string s : sprite_names_)
+  {
+    assert(m_lump_map.find(s) != m_lump_map.end());
+    WADEntry sprite_lump_ = m_directory[m_lump_map[s]];
+    m_offset = sprite_lump_.offset;
+
+    WADSprite sprite_;
+
+    // Each picture starts with an 8-byte header of four shorts. Those four fields are the following:
+    //  (a) The width of the picture (number of columns of pixels)
+    //  (b) The height of the picture (number of rows of pixels)
+    //  (c) The left offset (number of pixels to the left of the center where the first column is drawn)
+    //  (d) The top offset (number of pixels to the top of the center where the top row is drawn).
+
+    sprite_.width = read_ushort(m_wad_data, m_offset);
+    sprite_.height = read_ushort(m_wad_data, m_offset);
+    sprite_.left_offset = read_ushort(m_wad_data, m_offset);
+    sprite_.top_offset = read_ushort(m_wad_data, m_offset);
+
+    // After the header, there are as many 4-byte integers as columns in the picture. Each one of them
+    // is a pointer to the data start for each column (an offset from the first byte of the LUMP)
+
+    std::vector<unsigned int> column_offsets_(sprite_.width);
+    for (int i = 0; i < sprite_.width; ++i)
+      column_offsets_[i] = read_uint(m_wad_data, m_offset);
+
+    // Each column data is an array of bytes arranged in another structure named POSTS. Each POST has
+    // the following structure:
+    //  (a) The first byte is the row to start drawing
+    //  (b) The second byte is the size of the post (the amount of pixels to draw downwards)
+    //  (c) As many bytes as pixels in the post + 2 additional bytes. Each byte defines the color index
+    //      in the current game palette that the pixel uses. The first and last bytes of this arrangement
+    //      are TO BE IGNORED, THEY ARE NOT DRAWN
+    //
+    // After the last byte of the POST, there might be another POST with the same structure as before
+    // or the column might end. A 255 (0xFF) value after a post indicates that the column ends and the
+    // following pixels are transparent. Note that a column may immediately begin with 0xFF and no post
+    // at all. In such case, the whole column is transparent.
+
+    for (int i = 0; i < sprite_.width; ++i)
+    {
+      m_offset = sprite_lump_.offset + column_offsets_[i];
+
+      while (m_wad_data[m_offset] != 0xFF)
+      {
+        WADSpritePost post_;
+        post_.col = i;
+        post_.row = m_wad_data[m_offset++];
+        post_.size = m_wad_data[m_offset++];
+
+        // Skip the first unused pixel
+        m_offset++;
+
+        for (uint8_t k = 0; k < post_.size; ++k)
+          post_.pixels.push_back(m_wad_data[m_offset++]);
+
+        // Skip the last unused pixel
+        m_offset++;
+
+        sprite_.posts.push_back(post_);
+      }
+    }
+
+    m_sprites.insert(std::pair<std::string, WADSprite>(s, sprite_));
+  }
+}
+```
+
+![trooa0](img/TROOA1.png)
+![trooa0](img/BKEYA0.png)
+![trooa0](img/SUITA0.png)
 
 ## References
 
