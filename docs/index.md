@@ -7,6 +7,7 @@
     4. [Reading the Header](#reading-the-header)
     5. [Reading the Directory](#reading-the-directory)
     6. [Reading Palettes](#reading-palettes)
+    7. [Reading Colormaps](#reading-colormaps)
 2. References
 
 ## WAD File Parsing
@@ -268,8 +269,40 @@ We also coded a brief procedure, namely `void write_palettes()`, which takes eac
 |![palette8](img/palette8.png)|![palette9](img/palette9.png)|![palette10](img/palette10.png)|![palette11](img/palette11.png)|
 |![palette12](img/palette12.png)|![palette13](img/palette13.png)| | |
 
+### Reading Colormaps
+
+The COLORMAP LUMP contains 34 color maps that map colors from palettes down in brightness. Each one of them is 256 bytes long so that each byte indexes pixels whithin a palette, i.e., the second byte of the first color map applied to the third palette indicates which pixel within that palette corresponds to the second position of the very same palette. Color maps were mainly used in DOOM for sector brightness (being color map 0 the brightest one and 31 the darkest). See [4] for a more detailed explanation of how color maps work.
+
+Color maps will be stored in our WAD class in the `std::vector<std::vector<uint8_t>> m_colormaps` member. Each color map is represented as a vector of `uint8_t` since we are dealing with just pixel indices. To read the color maps, we just look for the COLORMAP LUMP in our map and then get the corresponding offset to the its start from the DICTIONARY. Then we read chunks of 256 bytes and create a new color map for each one of them. Those color maps are inserted in the aforementioned class member which was previously preallocated to 34 items. The color map reading routine is `void read_colormaps()`.
+
+```c++
+void read_colormaps()
+{
+  assert(m_wad_data);
+  assert(m_lump_map.find("COLORMAP") != m_lump_map.end());
+
+  WADEntry colormaps_ = m_directory[m_lump_map["COLORMAP"]];
+
+  m_offset = colormaps_.offset;
+  while (m_offset < colormaps_.offset + colormaps_.size)
+  {
+    std::vector<uint8_t> colormap_(256);
+
+    for (unsigned int i = 0; i < 256; ++i)
+      colormap_[i] = m_wad_data[m_offset++];
+
+    m_colormaps.push_back(colormap_);
+  }
+}
+```
+
+We also coded a brief procedure, namely `void write_colormaps()`, which applies all the colormaps to each palette and produces a PPM image that combines all of them. Each row is a palette after applying a color map. For instance, the first 34 rows represent the 34 color maps applied to the first palette. We also scaled the output to 200% the original size and converted it to PNG using `mogrify -scale 200% colormaps.ppm` and `convert colormaps.ppm colormaps.png` respectively. The resulting image is shown below:
+
+![colormaps](img/colormaps.png)
+
 ## References
 
 - [1] [movax13h - Building a DOOM Engine from scratch with C/C++ and OpenGL – The WAD File – 001](http://www.movax13h.com/devlog/building-a-doom-engine-from-scratch-with-c-c-and-opengl-the-wad-file-001/)
 - [2] [The Unofficial DOOM](http://www.gamers.org/dhs/helpdocs/dmsp1666.html)
 - [3] [Doom Wiki WAD](https://doom.fandom.com/wiki/WAD)
+- [4] [Writing a Doom-style shader for Unity](https://medium.com/@jmickle_/writing-a-doom-style-shader-for-unity-63fa13678634)
