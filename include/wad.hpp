@@ -42,6 +42,23 @@ struct WADPaletteColor
 	uint8_t b;
 };
 
+struct WADSpritePost
+{
+  uint8_t col;
+  uint8_t row;
+  uint8_t size;
+  std::vector<uint8_t> pixels;
+};
+
+struct WADSprite
+{
+  unsigned int width;
+  unsigned int height;
+  unsigned int left_offset;
+  unsigned int top_offset;
+  std::vector<WADSpritePost> posts;
+};
+
 class WAD
 {
 	public:
@@ -70,6 +87,10 @@ class WAD
       read_colormaps();
       std::cout << "Read " << m_colormaps.size() << " color maps...\n";
       write_colormaps();
+
+      read_sprites();
+      std::cout << "Read " << m_sprites.size() << " sprites...\n";
+      write_sprites();
 		}
 
 		friend std::ostream& operator<<(std::ostream& rOs, const WAD& rWad)
@@ -119,13 +140,8 @@ class WAD
 			//	(c) an unsigned int (4-byte) that indicates the file offset to the start of the directory
 
 			copy_and_capitalize_buffer(m_wad_header.type, m_wad_data, m_offset, WAD_HEADER_TYPE_LENGTH);
-			m_offset += WAD_HEADER_TYPE_LENGTH;
-
 			m_wad_header.lump_count = read_uint(m_wad_data, m_offset);
-			m_offset += WAD_HEADER_LUMPCOUNT_LENGTH;
-
 			m_wad_header.directory_offset = read_uint(m_wad_data, m_offset);
-			m_offset += WAD_HEADER_OFFSET_LENGTH;
 		}
 
 		void read_directory()
@@ -143,11 +159,8 @@ class WAD
 			{
 				WADEntry entry_;
 				entry_.offset = read_uint(m_wad_data, m_offset);
-				m_offset += WAD_ENTRY_OFFSET_LENGTH;
 				entry_.size = read_uint(m_wad_data, m_offset);
-				m_offset += WAD_ENTRY_SIZE_LENGTH;
 				copy_and_capitalize_buffer(entry_.name, m_wad_data, m_offset, 8);
-				m_offset += WAD_ENTRY_NAME_LENGTH;
 
 				m_directory.push_back(entry_);
 				m_lump_map.insert(std::pair<std::string, unsigned int>(entry_.name, i));
@@ -239,6 +252,116 @@ class WAD
       writer_.write<WADPaletteColor>(colormap_img_, m_colormaps.size()  * m_palettes.size(), 256, "colormaps.ppm");
     }
 
+    void read_sprites()
+    {
+      assert(m_wad_data);
+
+      std::vector<std::string> sprite_names_ { "SUITA0", "TROOA1", "BKEYA0" };
+
+      for (std::string s : sprite_names_)
+      {
+        assert(m_lump_map.find(s) != m_lump_map.end());
+        WADEntry sprite_lump_ = m_directory[m_lump_map[s]];
+        m_offset = sprite_lump_.offset;
+
+        WADSprite sprite_;
+
+        // Each picture starts with an 8-byte header of four shorts. Those four fields are the following:
+        //  (a) The width of the picture (number of columns of pixels)
+        //  (b) The height of the picture (number of rows of pixels)
+        //  (c) The left offset (number of pixels to the left of the center where the first column is drawn)
+        //  (d) The top offset (number of pixels to the top of the center where the top row is drawn).
+
+        sprite_.width = read_ushort(m_wad_data, m_offset);
+        sprite_.height = read_ushort(m_wad_data, m_offset);
+        sprite_.left_offset = read_ushort(m_wad_data, m_offset);
+        sprite_.top_offset = read_ushort(m_wad_data, m_offset);
+
+        std::cout << "Read sprite " << s << " (" << sprite_.width << ", " << sprite_.height << ", " << sprite_.left_offset << ", " << sprite_.top_offset << ")\n";
+
+        // After the header, there are as many 4-byte integers as columns in the picture. Each one of them
+        // is a pointer to the data start for each column (an offset from the first byte of the LUMP)
+
+        std::vector<unsigned int> column_offsets_(sprite_.width);
+        for (int i = 0; i < sprite_.width; ++i)
+          column_offsets_[i] = read_uint(m_wad_data, m_offset);
+
+        // Each column data is an array of bytes arranged in another structure named POSTS. Each POST has
+        // the following structure:
+        //  (a) The first byte is the row to start drawing
+        //  (b) The second byte is the size of the post (the amount of pixels to draw downwards)
+        //  (c) As many bytes as pixels in the post + 2 additional bytes. Each byte defines the color index
+        //      in the current game palette that the pixel uses. The first and last bytes of this arrangement
+        //      are TO BE IGNORED, THEY ARE NOT DRAWN
+        //
+        // After the last byte of the POST, there might be another POST with the same structure as before
+        // or the column might end. A 255 (0xFF) value after a post indicates that the column ends and the
+        // following pixels are transparent. Note that a column may immediately begin with 0xFF and no post
+        // at all. In such case, the whole column is transparent.
+
+        for (int i = 0; i < sprite_.width; ++i)
+        {
+          m_offset = sprite_lump_.offset + column_offsets_[i];
+
+          while (m_wad_data[m_offset] != 0xFF)
+          {
+            WADSpritePost post_;
+            post_.col = i;
+            post_.row = m_wad_data[m_offset++];
+            post_.size = m_wad_data[m_offset++];
+
+            // Skip the first unused pixel
+            m_offset++;
+
+            for (uint8_t k = 0; k < post_.size; ++k)
+              post_.pixels.push_back(m_wad_data[m_offset++]);
+
+            // Skip the last unused pixel
+            m_offset++;
+
+            sprite_.posts.push_back(post_);
+          }
+        }
+
+        m_sprites.insert(std::pair<std::string, WADSprite>(s, sprite_));
+      }
+    }
+
+    void write_sprites()
+    {
+      assert(m_palettes.size() != 0);
+      // TODO: Colormaps are not used in this routine
+      assert(m_colormaps.size() != 0);
+      assert(m_sprites.size() != 0);
+
+      PPMWriter writer_;
+
+      for (auto s : m_sprites)
+      {
+        std::string name_ = s.first;
+        WADSprite sprite_ = s.second;
+
+        std::vector<WADPaletteColor> texture_(sprite_.width * m_palettes.size() * sprite_.height);
+
+        for (auto p : sprite_.posts)
+        {
+          unsigned int row_ = p.row;
+          unsigned int col_ = p.col;
+
+          for (unsigned int i = 0; i < p.size; ++i)
+          {
+            for (unsigned int k = 0; k < m_palettes.size(); ++k)
+            {
+              unsigned int idx_ = (row_ + i) * sprite_.width * m_palettes.size() + (col_ + sprite_.width * k);
+              texture_[idx_] = m_palettes[k][p.pixels[i]];
+            }
+          }
+        }
+
+        writer_.write<WADPaletteColor>(texture_, sprite_.height, sprite_.width * m_palettes.size(), name_ + ".ppm");
+      }
+    }
+
 		unsigned int m_offset;
 		std::unique_ptr<uint8_t[]> m_wad_data;
 
@@ -247,6 +370,7 @@ class WAD
 		std::map<std::string, unsigned int> m_lump_map; 
 		std::vector<std::vector<WADPaletteColor>> m_palettes;
     std::vector<std::vector<uint8_t>> m_colormaps;
+    std::map<std::string, WADSprite> m_sprites;
 };
 
 #endif
