@@ -3,10 +3,12 @@
 
 #include <cassert>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <ostream>
+#include <regex>
 #include <vector>
 
 #include "ppm_writer.hpp"
@@ -59,6 +61,11 @@ struct WADSprite
   std::vector<WADSpritePost> posts;
 };
 
+struct WADLevel
+{
+  std::string name;
+};
+
 class WAD
 {
 	public:
@@ -91,6 +98,8 @@ class WAD
       read_sprites();
       std::cout << "Read " << m_sprites.size() << " sprites...\n";
       write_sprites();
+
+      read_levels();
 		}
 
 		friend std::ostream& operator<<(std::ostream& rOs, const WAD& rWad)
@@ -362,6 +371,107 @@ class WAD
       }
     }
 
+    void read_level_things(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_linedefs(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_sidedefs(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_vertexes(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_segs(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_ssectors(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_nodes(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_sectors(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_reject(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_level_blockmap(WADLevel & rLevel, WADEntry entry)
+    {
+      std::cout << "TODO!\n";
+    }
+
+    void read_levels()
+    {
+      assert(m_wad_data);
+      assert(m_lump_map.size() != 0);
+      assert(m_directory.size() != 0);
+
+      // DOOM levels have an ExMy label in the directory (where both x and y are single ASCII digits). The label just
+      // indicates that the following LUMPs are part of such level. Actually, the ENTRY for each ExMy does not point to
+      // any LUMP and its size is zero.
+      
+      std::regex level_label_regex_("E[[:digit:]]M[[:digit:]]");
+
+      // Map each possible LUMP name which belongs to a level to the corresponding function to read it
+
+      typedef void (WAD::*read_function_)(WADLevel &, WADEntry);
+      std::map<std::string, read_function_> level_lump_names_ {
+        {"THINGS", &WAD::read_level_things},
+        {"LINEDEFS", &WAD::read_level_linedefs},
+        {"SIDEDEFS", &WAD::read_level_sidedefs},
+        {"VERTEXES", &WAD::read_level_vertexes},
+        {"SEGS", &WAD::read_level_segs},
+        {"SSECTORS", &WAD::read_level_ssectors},
+        {"NODES", &WAD::read_level_nodes},
+        {"SECTORS", &WAD::read_level_sectors},
+        {"REJECT", &WAD::read_level_reject},
+        {"BLOCKMAP", &WAD::read_level_blockmap},
+      };
+
+      for (auto e : m_lump_map)
+      {
+        std::string lump_name_ = e.first;
+        unsigned int directory_index_ = e.second;
+
+        if (std::regex_match(lump_name_, level_label_regex_))
+        {
+          std::cout << "Found level " << lump_name_ << "\n";
+
+          WADLevel level_;
+          level_.name = lump_name_;
+
+          while(level_lump_names_.find(m_directory[++directory_index_].name) != level_lump_names_.end())
+          {
+            WADEntry entry_ = m_directory[directory_index_];
+            (this->*(level_lump_names_[entry_.name]))(level_, entry_);
+          }
+
+          m_levels.push_back(level_);
+        }
+      }
+    }
+
 		unsigned int m_offset;
 		std::unique_ptr<uint8_t[]> m_wad_data;
 
@@ -371,6 +481,7 @@ class WAD
 		std::vector<std::vector<WADPaletteColor>> m_palettes;
     std::vector<std::vector<uint8_t>> m_colormaps;
     std::map<std::string, WADSprite> m_sprites;
+    std::vector<WADLevel> m_levels;
 };
 
 #endif
