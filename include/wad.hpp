@@ -20,6 +20,7 @@
 #define WAD_ENTRY_OFFSET_LENGTH 4
 #define WAD_ENTRY_SIZE_LENGTH 4
 #define WAD_ENTRY_NAME_LENGTH 8
+#define WAD_LEVEL_SECTOR_TEXTURE_NAME_LENGTH 8
 
 // http://www.gamers.org/dhs/helpdocs/dmsp1666.html
 
@@ -77,11 +78,46 @@ struct WADLevelSeg
   unsigned short offset;
 };
 
+struct WADLevelSubSector
+{
+  unsigned short num_segs;
+  unsigned short start_seg;
+};
+
+struct WADLevelSector
+{
+  unsigned short floor_height;
+  unsigned short ceiling_height;
+  std::string floor_texture;
+  std::string ceiling_texture;
+  unsigned short light_level;
+  unsigned short special;
+  unsigned short tag;
+
+  //
+  // TODO: Before implementing more inline friend functions, analyze the implications in
+  // terms of performance and space.
+  //
+  inline friend std::ostream& operator<<(std::ostream& rOs, const WADLevelSector& crSec)
+  {
+    rOs << "SECTOR - ";
+    rOs << "(" << crSec.floor_height << ", " << crSec.ceiling_height << ")\n";
+    rOs << "Floor texture: " << crSec.floor_texture << "\n";
+    rOs << "Ceiling texture: " << crSec.ceiling_texture << "\n";
+    rOs << "Light level: " << crSec.light_level << "\n";
+    rOs << "Special: " << crSec.special << "\n";
+    rOs << "Tag: " << crSec.tag << "\n";
+    rOs << "\n";
+  }
+};
+
 struct WADLevel
 {
   std::string name;
   std::vector<WADLevelVertex> vertices;
   std::vector<WADLevelSeg> segs;
+  std::vector<WADLevelSubSector> ssectors;
+  std::vector<WADLevelSector> sectors;
 };
 
 class WAD
@@ -162,9 +198,9 @@ class WAD
 			assert(m_wad_data);
 
 			// The header is a 12-byte component which consists of three 4-byte parts:
-			//	(a) an ASCII string (4-byte) which is "IWAD" or "PWAD"
-			//	(b)	an unsigned int (4-byte) to hold the number of lumps in the WAD file
-			//	(c) an unsigned int (4-byte) that indicates the file offset to the start of the directory
+			//	(1) an ASCII string (4-byte) which is "IWAD" or "PWAD"
+			//	(2)	an unsigned int (4-byte) to hold the number of lumps in the WAD file
+			//	(3) an unsigned int (4-byte) that indicates the file offset to the start of the directory
 
 			copy_and_capitalize_buffer(m_wad_header.type, m_wad_data, m_offset, WAD_HEADER_TYPE_LENGTH);
 			m_wad_header.lump_count = read_uint(m_wad_data, m_offset);
@@ -177,9 +213,9 @@ class WAD
 			assert(m_wad_header.lump_count != 0);
 
 			// The directory has one 16-byte entry for every lump. Each entry consists of three parts:
-			//	(a) an unsigned int (4-byte) which indicates the file offset to the start of the lump
-			//	(b) an unsigned int (4-byte) which indicates the size of the lump in bytes
-			//	(c) an ASCII string (8-byte) which holds the name of the lump (padded with zeroes)
+			//	(1) an unsigned int (4-byte) which indicates the file offset to the start of the lump
+			//	(2) an unsigned int (4-byte) which indicates the size of the lump in bytes
+			//	(3) an ASCII string (8-byte) which holds the name of the lump (padded with zeroes)
 
 			m_offset = m_wad_header.directory_offset;
 			for (unsigned int i = 0; i < m_wad_header.lump_count; ++i)
@@ -294,10 +330,10 @@ class WAD
         WADSprite sprite_;
 
         // Each picture starts with an 8-byte header of four shorts. Those four fields are the following:
-        //  (a) The width of the picture (number of columns of pixels)
-        //  (b) The height of the picture (number of rows of pixels)
-        //  (c) The left offset (number of pixels to the left of the center where the first column is drawn)
-        //  (d) The top offset (number of pixels to the top of the center where the top row is drawn).
+        //  (1) The width of the picture (number of columns of pixels)
+        //  (2) The height of the picture (number of rows of pixels)
+        //  (3) The left offset (number of pixels to the left of the center where the first column is drawn)
+        //  (4) The top offset (number of pixels to the top of the center where the top row is drawn).
 
         sprite_.width = read_ushort(m_wad_data, m_offset);
         sprite_.height = read_ushort(m_wad_data, m_offset);
@@ -315,9 +351,9 @@ class WAD
 
         // Each column data is an array of bytes arranged in another structure named POSTS. Each POST has
         // the following structure:
-        //  (a) The first byte is the row to start drawing
-        //  (b) The second byte is the size of the post (the amount of pixels to draw downwards)
-        //  (c) As many bytes as pixels in the post + 2 additional bytes. Each byte defines the color index
+        //  (1) The first byte is the row to start drawing
+        //  (2) The second byte is the size of the post (the amount of pixels to draw downwards)
+        //  (3) As many bytes as pixels in the post + 2 additional bytes. Each byte defines the color index
         //      in the current game palette that the pixel uses. The first and last bytes of this arrangement
         //      are TO BE IGNORED, THEY ARE NOT DRAWN
         //
@@ -410,13 +446,13 @@ class WAD
 
       m_offset = entry.offset;
 
-      // VERTEXES are the beginning and the end of SEGS and LINEDEFS. Each vertex is 4 bytes long and contains two fields:
-      //  (a) an unsigned short (2 bytes) for the X coordinate
-      //  (b) an unsigned short (2 bytes) for the Y coordinate
-
       while (m_offset < entry.offset + entry.size)
       {
         WADLevelVertex vertex_;
+
+        // VERTEXES are the beginning and the end of SEGS and LINEDEFS. Each vertex is 4 bytes long and contains two fields:
+        //  (1) an unsigned short (2 bytes) for the X coordinate
+        //  (2) an unsigned short (2 bytes) for the Y coordinate
 
         vertex_.x = read_ushort(m_wad_data, m_offset);
         vertex_.y = read_ushort(m_wad_data, m_offset);
@@ -433,17 +469,17 @@ class WAD
 
       m_offset = entry.offset;
 
-      // SEGS are stored in sequential order determined by the SSECTORS. Each one of them is 12 bytes long with six fields:
-      //  (a) an unsigned short (2 bytes) that indicates the start VERTEX
-      //  (b) an unsigned short (2 bytes) that indicates the end VERTEX
-      //  (c) a signed short (2 bytes) to indicate the angle in BAM format
-      //  (d) an unsigned short (2 bytes) that tells the LINEDEF that this SEG goes along
-      //  (e) an unsigned short (2 bytes) for the direction of the SEG w.r.t. the LINEDEF (0 - same, 1 - opposite)
-      //  (f) an unsigned short (2 bytes) which expresses the distance along the LINEDEF to the start of this SEG
-
       while (m_offset < entry.offset + entry.size)
       {
         WADLevelSeg seg_;
+
+        // SEGS are stored in sequential order determined by the SSECTORS. Each one of them is 12 bytes long with six fields:
+        //  (1) an unsigned short (2 bytes) that indicates the start VERTEX
+        //  (2) an unsigned short (2 bytes) that indicates the end VERTEX
+        //  (3) a signed short (2 bytes) to indicate the angle in BAM format
+        //  (4) an unsigned short (2 bytes) that tells the LINEDEF that this SEG goes along
+        //  (5) an unsigned short (2 bytes) for the direction of the SEG w.r.t. the LINEDEF (0 - same, 1 - opposite)
+        //  (6) an unsigned short (2 bytes) which expresses the distance along the LINEDEF to the start of this SEG
 
         seg_.start = read_ushort(m_wad_data, m_offset);
         seg_.end = read_ushort(m_wad_data, m_offset);
@@ -460,7 +496,26 @@ class WAD
 
     void read_level_ssectors(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading SSECTORS\n";
+
+      m_offset = entry.offset;
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelSubSector ssector_;
+
+        // SSECTORS are sub-sectors that divide the SECTORS into convex polygons. Each SSECTOR is
+        // 4 bytes long distributed into two fields:
+        //  (1) unsigned short (2 bytes) the amount of SEGS in the SSECTOR
+        //  (2) unsigned short (2 bytes) starting SEG number
+
+        ssector_.num_segs = read_ushort(m_wad_data, m_offset);
+        ssector_.start_seg = read_ushort(m_wad_data, m_offset);
+
+        rLevel.ssectors.push_back(ssector_);
+      }
+
+      std::cout << "Read " << rLevel.ssectors.size() << " SSECTORS...\n";
     }
 
     void read_level_nodes(WADLevel & rLevel, WADEntry entry)
@@ -470,7 +525,36 @@ class WAD
 
     void read_level_sectors(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading SECTORS\n";
+
+      m_offset = entry.offset;
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelSector sector_;
+
+        // SECTORS are horizonal areas of the map where floor and ceiling heights are defined. Each
+        // SECTOR's record is 26 bytes long and it is divided into seven fields:
+        //  (1) unsigned short (2 bytes) floor height
+        //  (2) unsigned short (2 bytes) ceiling height
+        //  (3) ASCII string (8 bytes) name of floor texture
+        //  (4) ASCII string (8 bytes) name of ceiling texture
+        //  (5) unsigned short (2 bytes) light level for the sector
+        //  (6) unsigned short (2 bytes) special flags
+        //  (7) unsigned short (2 bytes) tag number of the sector
+
+        sector_.floor_height = read_ushort(m_wad_data, m_offset);
+        sector_.ceiling_height = read_ushort(m_wad_data, m_offset);
+        copy_and_capitalize_buffer(sector_.floor_texture, m_wad_data, m_offset, WAD_LEVEL_SECTOR_TEXTURE_NAME_LENGTH);
+        copy_and_capitalize_buffer(sector_.ceiling_texture, m_wad_data, m_offset, WAD_LEVEL_SECTOR_TEXTURE_NAME_LENGTH);
+        sector_.light_level = read_ushort(m_wad_data, m_offset);
+        sector_.special = read_ushort(m_wad_data, m_offset);
+        sector_.tag = read_ushort(m_wad_data, m_offset);
+
+        rLevel.sectors.push_back(sector_);
+      }
+
+      std::cout << "Read " << rLevel.sectors.size() << " SECTORS...\n";
     }
 
     void read_level_reject(WADLevel & rLevel, WADEntry entry)
