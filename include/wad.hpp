@@ -61,9 +61,27 @@ struct WADSprite
   std::vector<WADSpritePost> posts;
 };
 
+struct WADLevelVertex
+{
+  unsigned short x;
+  unsigned short y;
+};
+
+struct WADLevelSeg
+{
+  unsigned short start;
+  unsigned short end;
+  unsigned short angle;
+  unsigned short linedef;
+  unsigned short direction;
+  unsigned short offset;
+};
+
 struct WADLevel
 {
   std::string name;
+  std::vector<WADLevelVertex> vertices;
+  std::vector<WADLevelSeg> segs;
 };
 
 class WAD
@@ -388,12 +406,56 @@ class WAD
 
     void read_level_vertexes(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading VERTEXES\n";
+
+      m_offset = entry.offset;
+
+      // VERTEXES are the beginning and the end of SEGS and LINEDEFS. Each vertex is 4 bytes long and contains two fields:
+      //  (a) an unsigned short (2 bytes) for the X coordinate
+      //  (b) an unsigned short (2 bytes) for the Y coordinate
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelVertex vertex_;
+
+        vertex_.x = read_ushort(m_wad_data, m_offset);
+        vertex_.y = read_ushort(m_wad_data, m_offset);
+
+        rLevel.vertices.push_back(vertex_);
+      }
+
+      std::cout << "Read " << rLevel.vertices.size() << " VERTEXES...\n";
     }
 
     void read_level_segs(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading SEGS\n";
+
+      m_offset = entry.offset;
+
+      // SEGS are stored in sequential order determined by the SSECTORS. Each one of them is 12 bytes long with six fields:
+      //  (a) an unsigned short (2 bytes) that indicates the start VERTEX
+      //  (b) an unsigned short (2 bytes) that indicates the end VERTEX
+      //  (c) a signed short (2 bytes) to indicate the angle in BAM format
+      //  (d) an unsigned short (2 bytes) that tells the LINEDEF that this SEG goes along
+      //  (e) an unsigned short (2 bytes) for the direction of the SEG w.r.t. the LINEDEF (0 - same, 1 - opposite)
+      //  (f) an unsigned short (2 bytes) which expresses the distance along the LINEDEF to the start of this SEG
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelSeg seg_;
+
+        seg_.start = read_ushort(m_wad_data, m_offset);
+        seg_.end = read_ushort(m_wad_data, m_offset);
+        seg_.angle = read_ushort(m_wad_data, m_offset);
+        seg_.linedef = read_ushort(m_wad_data, m_offset);
+        seg_.direction = read_ushort(m_wad_data, m_offset);
+        seg_.offset = read_ushort(m_wad_data, m_offset);
+
+        rLevel.segs.push_back(seg_);
+      }
+
+      std::cout << "Read " << rLevel.segs.size() << " SEGS...\n";
     }
 
     void read_level_ssectors(WADLevel & rLevel, WADEntry entry)
@@ -435,6 +497,9 @@ class WAD
 
       // Map each possible LUMP name which belongs to a level to the corresponding function to read it
 
+      //
+      // TODO: Make this use STD functional
+      //
       typedef void (WAD::*read_function_)(WADLevel &, WADEntry);
       std::map<std::string, read_function_> level_lump_names_ {
         {"THINGS", &WAD::read_level_things},
