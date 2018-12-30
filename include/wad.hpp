@@ -21,6 +21,7 @@
 #define WAD_ENTRY_SIZE_LENGTH 4
 #define WAD_ENTRY_NAME_LENGTH 8
 #define WAD_LEVEL_SECTOR_TEXTURE_NAME_LENGTH 8
+#define WAD_LEVEL_SIDEDEF_TEXTURE_NAME_LENGTH 8
 
 // http://www.gamers.org/dhs/helpdocs/dmsp1666.html
 
@@ -60,6 +61,27 @@ struct WADSprite
   unsigned int left_offset;
   unsigned int top_offset;
   std::vector<WADSpritePost> posts;
+};
+
+struct WADLevelLinedef
+{
+  unsigned short from;
+  unsigned short to;
+  unsigned short flags;
+  unsigned short types;
+  unsigned short tag;
+  unsigned short right_sidedef;
+  unsigned short left_sidedef;
+};
+
+struct WADLevelSidedef
+{
+  unsigned short x_offset;
+  unsigned short y_offset;
+  std::string upper_texture;
+  std::string lower_texture;
+  std::string middle_texture;
+  unsigned short sector;
 };
 
 struct WADLevelVertex
@@ -114,6 +136,8 @@ struct WADLevelSector
 struct WADLevel
 {
   std::string name;
+  std::vector<WADLevelLinedef> linedefs;
+  std::vector<WADLevelSidedef> sidedefs;
   std::vector<WADLevelVertex> vertices;
   std::vector<WADLevelSeg> segs;
   std::vector<WADLevelSubSector> ssectors;
@@ -432,12 +456,67 @@ class WAD
 
     void read_level_linedefs(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading LINEDEFS\n";
+
+      m_offset = entry.offset;
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelLinedef linedef_;
+
+        // LINEDEFS represent lines from one vertex to another. Each LINEDEF is 14 bytes long and contains seven fields:
+        //  (1) unsigned short (2 bytes) the number of the origin vertex
+        //  (2) unsigned short (2 bytes) the number of the destination vertex
+        //  (3) unsigned short (2 bytes) linedef flags
+        //  (4) unsigned short (2 bytes) linedef types
+        //  (5) unsigned short (2 bytes) tag to tie this LINEDEF's effect type to a SECTOR
+        //  (6) unsigned short (2 bytes) number of the right SIDEDEF to this LINEDEF
+        //  (7) unsigned short (2 bytes) number of the left SIDEDEF to this LINEDEF
+
+        linedef_.from = read_ushort(m_wad_data, m_offset);
+        linedef_.to = read_ushort(m_wad_data, m_offset);
+        linedef_.flags = read_ushort(m_wad_data, m_offset);
+        linedef_.types = read_ushort(m_wad_data, m_offset);
+        linedef_.tag = read_ushort(m_wad_data, m_offset);
+        linedef_.right_sidedef = read_ushort(m_wad_data, m_offset);
+        linedef_.left_sidedef = read_ushort(m_wad_data, m_offset);
+
+        rLevel.linedefs.push_back(linedef_);
+      }
+
+      std::cout << "Read " << rLevel.linedefs.size() << " LINEDEFS...\n";
     }
 
     void read_level_sidedefs(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading SIDEDEFS\n";
+
+      m_offset = entry.offset;
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelSidedef sidedef_;
+
+        // SIDEDEFS are a definition of what wall textures to draw along a LINEDEF so a group of SIDEDEFS outline the
+        // space of a SECTOR. Each SIDEDEF is composed of 30 bytes distributed among six fields:
+        //  (1) an unsigned short (2 bytes) for the horizontal offset for the texture
+        //  (2) an unsigned short (2 bytes) for the vertical offset of the texture
+        //  (3) an ASCII string (8 bytes) that indicates the texture name for the upper part of the wall
+        //  (4) an ASCII string (8 bytes) that indicates the texture name for the lower part of the wall
+        //  (5) an ASCII string (8 bytes) that indicates the texture name for the middle part of the wall
+        //  (6) an unsigned short (2 bytes) to reference the SECTOR that this SIDEDEF faces or surrounds
+
+        sidedef_.x_offset = read_ushort(m_wad_data, m_offset);
+        sidedef_.y_offset = read_ushort(m_wad_data, m_offset);
+        copy_and_capitalize_buffer(sidedef_.upper_texture, m_wad_data, m_offset, WAD_LEVEL_SIDEDEF_TEXTURE_NAME_LENGTH);
+        copy_and_capitalize_buffer(sidedef_.lower_texture, m_wad_data, m_offset, WAD_LEVEL_SIDEDEF_TEXTURE_NAME_LENGTH);
+        copy_and_capitalize_buffer(sidedef_.middle_texture, m_wad_data, m_offset, WAD_LEVEL_SIDEDEF_TEXTURE_NAME_LENGTH);
+        sidedef_.sector = read_ushort(m_wad_data, m_offset);
+
+        rLevel.sidedefs.push_back(sidedef_);
+      }
+
+      std::cout << "Read " << rLevel.sidedefs.size() << " SIDEDEFS...\n";
     }
 
     void read_level_vertexes(WADLevel & rLevel, WADEntry entry)
