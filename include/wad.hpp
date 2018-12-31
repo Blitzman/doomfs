@@ -106,6 +106,24 @@ struct WADLevelSubSector
   unsigned short start_seg;
 };
 
+struct WADLevelNode
+{
+  unsigned short x_start;
+  unsigned short y_start;
+  unsigned short dx;
+  unsigned short dy;
+  unsigned short right_y_upper;
+  unsigned short right_y_lower;
+  unsigned short right_x_lower;
+  unsigned short right_x_upper;
+  unsigned short left_y_upper;
+  unsigned short left_y_lower;
+  unsigned short left_x_lower;
+  unsigned short left_x_upper;
+  unsigned short right_child;
+  unsigned short left_child;
+};
+
 struct WADLevelSector
 {
   unsigned short floor_height;
@@ -141,6 +159,7 @@ struct WADLevel
   std::vector<WADLevelVertex> vertices;
   std::vector<WADLevelSeg> segs;
   std::vector<WADLevelSubSector> ssectors;
+  std::vector<WADLevelNode> nodes;
   std::vector<WADLevelSector> sectors;
 };
 
@@ -599,7 +618,48 @@ class WAD
 
     void read_level_nodes(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading NODES\n";
+
+      m_offset = entry.offset;
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelNode node_;
+
+        // NODEs are branches in the binary space partiion that divides the level up. Each NODE has
+        // 28 bytes in 14 short fields:
+        //  (1) unsigned short (2 bytes) X coordinate of the partition line's start
+        //  (2) unsigned short (2 bytes) Y coordinate of the partition line's start
+        //  (3) unsigned short (2 bytes) change in X to the end of the partition line
+        //  (4) unsigned short (2 bytes) change in Y to the end of the partition line
+        //  (5) unsigned short (2 bytes) Y upper bound of the right bounding box
+        //  (6) unsigned short (2 bytes) Y lower bound of the right bounding box
+        //  (7) unsigned short (2 bytes) X lower bound of the right bounding box
+        //  (8) unsigned short (2 bytes) X upper bound of the right bounding box
+        //  (9) unsigned short (2 bytes) Y upper bound of the left bounding box
+        //  (10) unsigned short (2 bytes) Y lower bound of the left bounding box
+        //  (11) unsigned short (2 bytes) X lower bound of the left bounding box
+        //  (12) unsigned short (2 bytes) X upper bound of the left bounding box
+        //  (13) unsigned short (2 bytes) NODE or SSECTOR number for the right child
+        //  (14) unsigned short (2 bytes) NODE or SSECTOR number for the left child
+
+        node_.x_start = read_ushort(m_wad_data, m_offset);
+        node_.y_start = read_ushort(m_wad_data, m_offset);
+        node_.right_y_upper = read_ushort(m_wad_data, m_offset);
+        node_.right_y_lower = read_ushort(m_wad_data, m_offset);
+        node_.right_x_lower = read_ushort(m_wad_data, m_offset);
+        node_.right_x_upper = read_ushort(m_wad_data, m_offset);
+        node_.left_y_upper = read_ushort(m_wad_data, m_offset);
+        node_.left_y_lower = read_ushort(m_wad_data, m_offset);
+        node_.left_x_lower = read_ushort(m_wad_data, m_offset);
+        node_.left_x_upper = read_ushort(m_wad_data, m_offset);
+        node_.right_child = read_ushort(m_wad_data, m_offset);
+        node_.left_child = read_ushort(m_wad_data, m_offset);
+
+        rLevel.nodes.push_back(node_);
+      }
+
+      std::cout << "Read " << rLevel.nodes.size() << " NODES...\n";
     }
 
     void read_level_sectors(WADLevel & rLevel, WADEntry entry)
