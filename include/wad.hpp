@@ -63,6 +63,15 @@ struct WADSprite
   std::vector<WADSpritePost> posts;
 };
 
+struct WADLevelThing
+{
+  unsigned short x;
+  unsigned short y;
+  unsigned short angle;
+  unsigned short type;
+  unsigned short options;
+};
+
 struct WADLevelLinedef
 {
   unsigned short from;
@@ -151,9 +160,19 @@ struct WADLevelSector
   }
 };
 
+struct WADLevelBlockmap
+{
+  unsigned short x;
+  unsigned short y;
+  unsigned short num_cols;
+  unsigned short num_rows;
+  std::vector<std::vector<unsigned short>> blocklists;
+};
+
 struct WADLevel
 {
   std::string name;
+  std::vector<WADLevelThing> things;
   std::vector<WADLevelLinedef> linedefs;
   std::vector<WADLevelSidedef> sidedefs;
   std::vector<WADLevelVertex> vertices;
@@ -161,6 +180,7 @@ struct WADLevel
   std::vector<WADLevelSubSector> ssectors;
   std::vector<WADLevelNode> nodes;
   std::vector<WADLevelSector> sectors;
+  WADLevelBlockmap blockmap;
 };
 
 class WAD
@@ -470,7 +490,32 @@ class WAD
 
     void read_level_things(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading THINGS\n";
+
+      m_offset = entry.offset;
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        WADLevelThing thing_;
+
+        // THINGS are generic descriptors for monsters, weapons, keys, barrels, ... Each one of them takes 10 bytes to
+        // specify various aspects:
+        //  (1) unsigned short (2 bytes) X coordinate position of the THING
+        //  (2) unsigned short (2 bytes) Y coordinate position of the THING
+        //  (3) unsigned short (2 bytes) angle the THING faces (values rounded to the nearest 45 degree angle)
+        //  (4) unsigned short (2 bytes) type of THING
+        //  (5) unsigned short (2 bytes) options for the THING
+
+        thing_.x = read_ushort(m_wad_data, m_offset);
+        thing_.y = read_ushort(m_wad_data, m_offset);
+        thing_.angle = read_ushort(m_wad_data, m_offset);
+        thing_.type = read_ushort(m_wad_data, m_offset);
+        thing_.options = read_ushort(m_wad_data, m_offset);
+
+        rLevel.things.push_back(thing_);
+      }
+
+      std::cout << "Read " << rLevel.things.size() << " THINGS...\n";
     }
 
     void read_level_linedefs(WADLevel & rLevel, WADEntry entry)
@@ -703,7 +748,59 @@ class WAD
 
     void read_level_blockmap(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      std::cout << "Reading BLOCKMAP\n";
+
+      m_offset = entry.offset;
+
+      // BLOCKMAPs are pre-computed structures used by the game engine to simplify
+      // collision detection between moving things and walls. Each level has one
+      // BLOCKMAP and it is divided into three parts: header, offsets, and lists.
+
+      // The header of the BLOCKMAP contains 8 bytes divided into four fields:
+      //  (1) unsigned short (2 bytes) the X coordinate of the block grid origin
+      //  (2) unsigned short (2 bytes) the Y coordinate of the block grid origin
+      //  (3) unsigned short (2 bytes) the number of columns in the map
+      //  (4) unsigned short (2 bytes) the number of rows in the map
+
+      rLevel.blockmap.x = read_ushort(m_wad_data, m_offset);
+      rLevel.blockmap.y = read_ushort(m_wad_data, m_offset);
+      rLevel.blockmap.num_cols = read_ushort(m_wad_data, m_offset);
+      rLevel.blockmap.num_rows = read_ushort(m_wad_data, m_offset);
+
+      // After the header, there are N (number of columns in the map times the
+      // number of rows) offsets to blocklists. Each offset is a short integer
+      // that indicates the starting byte of the corresponding blocklist from
+      // the beginning of the BLOCKMAP LUMP.
+
+      unsigned int num_blocks_ = rLevel.blockmap.num_cols * rLevel.blockmap.num_rows;
+      std::vector<unsigned short> blocklists_offsets_(num_blocks_);
+      for (unsigned int i = 0; i < num_blocks_; ++i)
+        blocklists_offsets_.push_back(read_ushort(m_wad_data, m_offset));
+
+      // Each blocklist startrs with a short (0x0000) and ends with another
+      // short (0xFFFF). In between there are short indices to LINEDEFs.
+
+      for (unsigned int i = 0; i < blocklists_offsets_.size(); ++i)
+      {
+        std::vector<unsigned short> blocklist_;
+
+        m_offset = entry.offset + blocklists_offsets_[i];
+
+        // Skip the 0x0000 start of the blocklist
+        read_ushort(m_wad_data, m_offset);
+
+        // Start reading numbers until the 0xFFFF ending is found
+        unsigned short linedef_index_ = read_ushort(m_wad_data, m_offset);
+        while (linedef_index_ != 0xFFFF)
+        {
+          blocklist_.push_back(linedef_index_);
+          linedef_index_ = read_ushort(m_wad_data, m_offset);
+        }
+
+        rLevel.blockmap.blocklists.push_back(blocklist_);
+      }
+
+      std::cout << "Read " << rLevel.blockmap.blocklists.size() << " lists in the BLOCKMAP...\n";
     }
 
     void read_levels()
