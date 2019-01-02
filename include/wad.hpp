@@ -181,6 +181,7 @@ struct WADLevel
   std::vector<WADLevelNode> nodes;
   std::vector<WADLevelSector> sectors;
   WADLevelBlockmap blockmap;
+  std::vector<std::vector<bool>> reject;
 };
 
 class WAD
@@ -743,7 +744,51 @@ class WAD
 
     void read_level_reject(WADLevel & rLevel, WADEntry entry)
     {
-      std::cout << "TODO!\n";
+      assert(rLevel.sectors.size() != 0);
+
+      // Pre-allocate a SECTORS x SECTORS matrix for the REJECT table
+      for (unsigned int i = 0; i < rLevel.sectors.size(); ++i)
+        rLevel.reject.push_back(std::vector<bool>(rLevel.sectors.size()));
+
+      std::cout << "Reading REJECT\n";
+
+      m_offset = entry.offset;
+      unsigned int col_ = 0;
+      unsigned int row_ = 0;
+
+      // The REJECT table controls whether monsters in a given sector can detect or attack
+      // the player in other sector. It is a table of sectors vs. sectors where a 1 means
+      // that the monster cannot be activated nor attack the player in that sector combo.
+
+      while (m_offset < entry.offset + entry.size)
+      {
+        // The REJECT LUMP contains (SECTORS ^ 2) / 8 bytes rounded up. It is an array of
+        // bits that can be transformed into a table taking special care. Reading the table
+        // left-to-right and top-to-bottom, the first bit in the table is the bit 0 of byte 0,
+        // the second bit of the table is the bit 1 of byte 0 (read from least to most significant).
+
+        std::bitset<8> byte_ = m_wad_data[m_offset++];
+
+        for (unsigned int i = 0; i < 8; ++i)
+        {
+          if (col_ == rLevel.sectors.size())
+          {
+            col_ = 0;
+            row_++;
+          }
+
+          // Check if we have already filled the table even if we still have bits left (rounding)
+          if (row_ >= rLevel.sectors.size())
+            break;
+
+          //TODO: Make sure that test(i) tests the least significant one
+          rLevel.reject[col_][row_] = byte_.test(i);
+
+          col_++;
+        }
+      }
+
+      std::cout << "Read REJECT matrix " << rLevel.sectors.size() << "x" << rLevel.sectors.size() << "\n";
     }
 
     void read_level_blockmap(WADLevel & rLevel, WADEntry entry)
