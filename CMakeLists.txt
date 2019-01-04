@@ -1,6 +1,10 @@
 ### CMakeLists.txt for CUDA
 
 cmake_minimum_required(VERSION 2.8)
+find_package(PkgConfig REQUIRED)
+find_package(Vulkan REQUIRED)
+
+pkg_search_module(GLFW REQUIRED glfw3)
 
 # Pass options to NVCC
 set(
@@ -26,6 +30,9 @@ endif()
 # Specify include directories
 include_directories(
 			include
+            ~/glm/glm-0.9.9.3/glm
+            ${GLFW_INCLUDE_DIRS}
+            ${Vulkan_INCLUDE_DIR} 
     )
 
 # For compilation ...
@@ -33,6 +40,11 @@ include_directories(
 add_executable(
   doomfs
   src/main.cpp
+)
+
+target_link_libraries(doomfs
+    ${GLFW_STATIC_LIBRARIES}
+    ${Vulkan_LIBRARIES}
 )
 
 add_custom_command(

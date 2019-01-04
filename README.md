@@ -11,3 +11,12 @@ The whole process is being documented at this project's [GitHub pages](https://b
 DISCLAIMER: There have already been a lot of DOOM ports, reboots, remakes, and all those fancy names. Most of them are open-source, some of them are not. Few of them are well-document, most of them are not. Lots of great programmers have already posted very useful texts about DOOM's inner mechanisms. This project does not intend to override any of them. It is just a personal journey I decided to take by collecting all the knowledge available and creating my own little sandbox. The idea is to generate as much documentation as possible to fill the gaps. Mistakes will be made.
 
 Feel free to drop a mail to albertgg93@gmail.com for any suggestion, issue, or just to say hi!
+
+## Requirements
+
+* CMake >= 3.10.2
+  * pkgconfig
+* GLFW >= 3.2.1
+* GLM >= 0.9.9.3
+* Vulkan
+  * LunarG Vulkan SDK >= 1.1.92.1
