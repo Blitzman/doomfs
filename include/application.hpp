@@ -41,16 +41,45 @@ class Application
 
   private:
 
-    void init()
+    bool check_validation_layer_support(const std::vector<const char*>& crValidationLayers)
     {
-      std::cout << "Application initialization...\n";
+      uint32_t layer_count_;
+      vkEnumerateInstanceLayerProperties(&layer_count_, nullptr);
 
-      glfwInit();
+      std::vector<VkLayerProperties> av_layer_properties_(layer_count_);
+      vkEnumerateInstanceLayerProperties(&layer_count_, av_layer_properties_.data());
 
-      glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-      glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+      for (const char* l : crValidationLayers)
+      {
+        bool layer_found_ = false;
 
-      m_window.reset(glfwCreateWindow(800, 600, "Vulkan", nullptr, nullptr));
+        for (const auto& lp : av_layer_properties_)
+        {
+          if (strcmp(l, lp.layerName) == 0)
+          {
+            layer_found_ = true;
+            break;
+          }
+        }
+
+        if (!layer_found_)
+          return false;
+      }
+
+      return true;
+    }
+
+    void init_vulkan()
+    {
+      #ifdef NDEBUG
+        const bool kEnableValidationLayers = false;
+      #else
+        const bool kEnableValidationLayers = true;
+      #endif
+      
+      const std::vector<const char*> validation_layers_ = {
+        "VK_LAYER_LUNARG_standard_validation"
+      };
 
       uint32_t extension_count_ = 0;
 	    vkEnumerateInstanceExtensionProperties(nullptr, &extension_count_, nullptr);
@@ -80,10 +109,35 @@ class Application
 
       create_info_.enabledExtensionCount = glfw_extension_count_;
       create_info_.ppEnabledExtensionNames = glfw_extensions_;
+
       create_info_.enabledLayerCount = 0;
+
+      if (kEnableValidationLayers)
+      {
+        if (!check_validation_layer_support(validation_layers_))
+          throw std::runtime_error("Validation layers requested, but some are not available!");
+
+        create_info_.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
+        create_info_.ppEnabledLayerNames = validation_layers_.data();
+      }
 
       if (vkCreateInstance(&create_info_, nullptr, &m_vk_instance) != VK_SUCCESS)
         throw std::runtime_error("Failed to create vkInstance");
+    }
+
+    void init()
+    {
+      std::cout << "Application initialization...\n";
+
+      const int kWidth = 800;
+      const int kHeight = 600;
+
+      init_vulkan();
+
+      glfwInit();
+      glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+      glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+      m_window.reset(glfwCreateWindow(800, 600, "Vulkan", nullptr, nullptr));
     }
 
     void loop()
