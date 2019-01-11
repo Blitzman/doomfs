@@ -7,8 +7,8 @@
 
 int main(void)
 {
-	WAD wad_(WAD_FILENAME);
-	std::cout << wad_;
+	//WAD wad_(WAD_FILENAME);
+	//std::cout << wad_;
 
 	Application app_;
 	app_.run();
