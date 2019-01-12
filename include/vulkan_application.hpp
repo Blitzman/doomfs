@@ -47,6 +47,7 @@ class VulkanApplication
     VulkanApplication()
     {
       init_vulkan();
+      pick_physical_device();
     }
 
     ~VulkanApplication()
@@ -176,8 +177,37 @@ class VulkanApplication
       setup_debug_callback();
     }
 
+    bool is_device_suitable(VkPhysicalDevice device)
+    {
+      return true;
+    }
+
+    void pick_physical_device()
+    {
+      uint32_t device_count_ = 0;
+      vkEnumeratePhysicalDevices(m_vk_instance, &device_count_, nullptr);
+
+      if (device_count_ == 0)
+       throw std::runtime_error("failed to find GPUs with Vulkan support!");
+
+      std::vector<VkPhysicalDevice> devices_(device_count_);
+      vkEnumeratePhysicalDevices(m_vk_instance, &device_count_, devices_.data());
+
+      for (const auto& device : devices_)
+      {
+        if (is_device_suitable(device)) {
+          m_physical_device = device;
+          break;
+        }
+      }
+
+      if (m_physical_device == VK_NULL_HANDLE)
+        throw std::runtime_error("failed to find a suitable GPU!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
+    VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
 };
 
 #endif
