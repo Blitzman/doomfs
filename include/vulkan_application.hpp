@@ -1,6 +1,8 @@
 #ifndef VULKAN_APPLICATION_HPP_
 #define VULKAN_APPLICATION_HPP_
 
+#include <experimental/optional>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -33,6 +35,16 @@ void destroy_debug_utils_messengerext(
   if (function_ != nullptr)
     function_(instance, callback, pAllocator);
 }
+
+struct QueueFamilyIndices
+{
+    std::experimental::optional<uint32_t> m_graphics_family;
+
+    bool is_complete()
+    {
+        return bool(m_graphics_family);
+    }
+};
 
 class VulkanApplication
 {
@@ -177,9 +189,46 @@ class VulkanApplication
       setup_debug_callback();
     }
 
+    QueueFamilyIndices find_queue_families(VkPhysicalDevice device)
+    {
+      QueueFamilyIndices qf_indices_;
+
+      uint32_t qf_count_ = 0;
+      vkGetPhysicalDeviceQueueFamilyProperties(device, &qf_count_, nullptr);
+      std::vector<VkQueueFamilyProperties> qf_properties_(qf_count_);
+      vkGetPhysicalDeviceQueueFamilyProperties(device, &qf_count_, qf_properties_.data());
+
+      int i = 0;
+      for (const auto& qf : qf_properties_)
+      {
+        if (qf.queueCount > 0 && qf.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+          qf_indices_.m_graphics_family = i;
+
+        if (qf_indices_.is_complete())
+          break;
+        
+        ++i;
+      }
+
+      return qf_indices_;
+    }
+
     bool is_device_suitable(VkPhysicalDevice device)
     {
-      return true;
+      VkPhysicalDeviceProperties device_properties_;
+      vkGetPhysicalDeviceProperties(device, &device_properties_);
+
+      // Support for optional features like texture compression, 64-bits floats and multi-viewport
+      // rendering can be queried using device features...
+      VkPhysicalDeviceFeatures device_features_;
+      vkGetPhysicalDeviceFeatures(device, &device_features_);
+
+      QueueFamilyIndices qf_indices_ = find_queue_families(device);
+
+      // For the moment, we'll settle with just any discrete GPU that supports Vulkan and has the
+      // proper queue families.
+      return device_properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+              qf_indices_.is_complete();
     }
 
     void pick_physical_device()
