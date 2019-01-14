@@ -67,9 +67,11 @@ class Application
       std::cout << "Application cleanup...\n";
 
       m_vulkan.reset();
+      std::cout << "Cleaned Vulkan application...\n";
 
       m_window.reset();
 	    glfwTerminate();
+      std::cout << "Cleaned GLFW window...\n";
     }
 
     std::unique_ptr<GLFWwindow, glfwDeleter> m_window;

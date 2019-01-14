@@ -54,12 +54,17 @@ class VulkanApplication
     const bool kEnableValidationLayers = true;
   #endif
 
+  const std::vector<const char*> kValidationLayers = {
+    "VK_LAYER_LUNARG_standard_validation"
+  };
+
   public:
 
     VulkanApplication()
     {
       init_vulkan();
       pick_physical_device();
+      create_logical_device();
     }
 
     ~VulkanApplication()
@@ -68,6 +73,7 @@ class VulkanApplication
         destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
       vkDestroyInstance(m_vk_instance, nullptr);
+      vkDestroyDevice(m_device, nullptr);
     }
 
   private:
@@ -143,10 +149,6 @@ class VulkanApplication
 
     void init_vulkan()
     { 
-      const std::vector<const char*> validation_layers_ = {
-        "VK_LAYER_LUNARG_standard_validation"
-      };
-
       uint32_t extension_count_ = 0;
       vkEnumerateInstanceExtensionProperties(nullptr, &extension_count_, nullptr);
       std::vector<VkExtensionProperties> extensions_(extension_count_);
@@ -176,11 +178,11 @@ class VulkanApplication
 
       if (kEnableValidationLayers)
       {
-        if (!check_validation_layer_support(validation_layers_))
+        if (!check_validation_layer_support(kValidationLayers))
           throw std::runtime_error("Validation layers requested, but some are not available!");
 
-        create_info_.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
-        create_info_.ppEnabledLayerNames = validation_layers_.data();
+        create_info_.enabledLayerCount = static_cast<uint32_t>(kValidationLayers.size());
+        create_info_.ppEnabledLayerNames = kValidationLayers.data();
       }
 
       if (vkCreateInstance(&create_info_, nullptr, &m_vk_instance) != VK_SUCCESS)
@@ -254,9 +256,46 @@ class VulkanApplication
         throw std::runtime_error("failed to find a suitable GPU!");
     }
 
+    void create_logical_device()
+    {
+      QueueFamilyIndices qf_indices_ = find_queue_families(m_physical_device);
+
+      VkDeviceQueueCreateInfo queue_create_info_ = {};
+      queue_create_info_.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queue_create_info_.queueFamilyIndex = qf_indices_.m_graphics_family.value();
+      queue_create_info_.queueCount = 1;
+      float queue_priority_ = 1.0f;
+      queue_create_info_.pQueuePriorities = & queue_priority_;
+
+      VkPhysicalDeviceFeatures device_features_ = {};
+
+      VkDeviceCreateInfo device_create_info_ = {};
+      device_create_info_.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+      device_create_info_.pQueueCreateInfos = &queue_create_info_;
+      device_create_info_.queueCreateInfoCount = 1;
+      device_create_info_.pEnabledFeatures = &device_features_;
+
+      device_create_info_.enabledExtensionCount = 0;
+
+      if (kEnableValidationLayers)
+      {
+        device_create_info_.enabledLayerCount = static_cast<uint32_t>(kValidationLayers.size());
+        device_create_info_.ppEnabledLayerNames = kValidationLayers.data();
+      }
+      else
+        device_create_info_.enabledLayerCount = 0;
+
+      if (vkCreateDevice(m_physical_device, &device_create_info_, nullptr, &m_device) != VK_SUCCESS)
+        throw std::runtime_error("failed to create logical device!");
+
+      vkGetDeviceQueue(m_device, qf_indices_.m_graphics_family.value(), 0, &m_graphics_queue);
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
+    VkDevice m_device;
+    VkQueue m_graphics_queue;
 };
 
 #endif
