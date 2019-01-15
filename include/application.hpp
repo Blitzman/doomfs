@@ -12,15 +12,6 @@
 
 #include "vulkan_application.hpp"
 
-struct glfwDeleter
-{
-  void operator()(GLFWwindow *wnd)
-  {
-      std::cout << "Destroying GLFW Window Context" << std::endl;
-      glfwDestroyWindow(wnd);
-  }
-};
-
 class Application
 {
   public:
@@ -46,19 +37,19 @@ class Application
       const int kWidth = 800;
       const int kHeight = 600;
 
-      m_vulkan = std::make_unique<VulkanApplication>();
-
       glfwInit();
       glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
       glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-      m_window.reset(glfwCreateWindow(800, 600, "Vulkan", nullptr, nullptr));
+      m_window = std::make_shared<GLFWwindow*>(glfwCreateWindow(800, 600, "Vulkan", nullptr, nullptr));
+
+      m_vulkan = std::make_unique<VulkanApplication>(m_window);
     }
 
     void loop()
     {
       std::cout << "Application loop...\n";
 
-	    while (!glfwWindowShouldClose(m_window.get()))
+	    while (!glfwWindowShouldClose(*m_window.get()))
 		    glfwPollEvents();
     }
 
@@ -69,12 +60,15 @@ class Application
       m_vulkan.reset();
       std::cout << "Cleaned Vulkan application...\n";
 
+      std::cout << "Destroying GLFW Window Context" << std::endl;
+      glfwDestroyWindow(*m_window.get());
+
       m_window.reset();
 	    glfwTerminate();
       std::cout << "Cleaned GLFW window...\n";
     }
 
-    std::unique_ptr<GLFWwindow, glfwDeleter> m_window;
+    std::shared_ptr<GLFWwindow*> m_window;
     std::unique_ptr<VulkanApplication> m_vulkan;
 };
 

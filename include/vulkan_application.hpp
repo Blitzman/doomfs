@@ -60,9 +60,13 @@ class VulkanApplication
 
   public:
 
-    VulkanApplication()
+    VulkanApplication(std::shared_ptr<GLFWwindow*> pWindow)
     {
+      m_window = pWindow;
+
       init_vulkan();
+      setup_debug_callback();
+      create_surface();
       pick_physical_device();
       create_logical_device();
     }
@@ -72,8 +76,9 @@ class VulkanApplication
       if (kEnableValidationLayers)
         destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
-      vkDestroyInstance(m_vk_instance, nullptr);
       vkDestroyDevice(m_device, nullptr);
+      vkDestroySurfaceKHR(m_vk_instance, m_surface, nullptr);
+      vkDestroyInstance(m_vk_instance, nullptr);
     }
 
   private:
@@ -187,8 +192,6 @@ class VulkanApplication
 
       if (vkCreateInstance(&create_info_, nullptr, &m_vk_instance) != VK_SUCCESS)
         throw std::runtime_error("Failed to create vkInstance");
-
-      setup_debug_callback();
     }
 
     QueueFamilyIndices find_queue_families(VkPhysicalDevice device)
@@ -291,11 +294,20 @@ class VulkanApplication
       vkGetDeviceQueue(m_device, qf_indices_.m_graphics_family.value(), 0, &m_graphics_queue);
     }
 
+    void create_surface()
+    {
+      if (glfwCreateWindowSurface(m_vk_instance, *m_window.get(), nullptr, &m_surface) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create window surface!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
+    VkSurfaceKHR m_surface;
     VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
     VkDevice m_device;
     VkQueue m_graphics_queue;
+
+    std::shared_ptr<GLFWwindow*> m_window;
 };
 
 #endif
