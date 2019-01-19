@@ -60,6 +60,10 @@ class VulkanApplication
     "VK_LAYER_LUNARG_standard_validation"
   };
 
+  const std::vector<const char*> kDeviceExtensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+  };
+
   public:
 
     VulkanApplication(std::shared_ptr<GLFWwindow*> pWindow)
@@ -226,6 +230,21 @@ class VulkanApplication
       return qf_indices_;
     }
 
+    bool check_device_extension_support(VkPhysicalDevice device)
+    {
+      uint32_t extension_count_;
+      vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count_, nullptr);
+      std::vector<VkExtensionProperties> available_extensions_(extension_count_);
+      vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count_, available_extensions_.data());
+
+      std::set<std::string> required_extensions_(kDeviceExtensions.begin(), kDeviceExtensions.end());
+
+      for (const auto& extension : available_extensions_)
+        required_extensions_.erase(extension.extensionName);
+
+      return required_extensions_.empty();
+    }
+
     bool is_device_suitable(VkPhysicalDevice device)
     {
       VkPhysicalDeviceProperties device_properties_;
@@ -236,12 +255,16 @@ class VulkanApplication
       VkPhysicalDeviceFeatures device_features_;
       vkGetPhysicalDeviceFeatures(device, &device_features_);
 
+      // Check device extension support
+      bool extensions_supported_ = check_device_extension_support(device);
+
       QueueFamilyIndices qf_indices_ = find_queue_families(device);
 
       // For the moment, we'll settle with just any discrete GPU that supports Vulkan and has the
       // proper queue families.
       return device_properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-              qf_indices_.is_complete();
+              qf_indices_.is_complete() &&
+              extensions_supported_;
     }
 
     void pick_physical_device()
