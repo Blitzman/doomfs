@@ -2,6 +2,7 @@
 #define VULKAN_APPLICATION_HPP_
 
 #include <experimental/optional>
+#include <set>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -39,10 +40,11 @@ void destroy_debug_utils_messengerext(
 struct QueueFamilyIndices
 {
     std::experimental::optional<uint32_t> m_graphics_family;
+    std::experimental::optional<uint32_t> m_present_family;
 
     bool is_complete()
     {
-        return bool(m_graphics_family);
+        return bool(m_graphics_family) && bool(m_present_family);
     }
 };
 
@@ -209,6 +211,12 @@ class VulkanApplication
         if (qf.queueCount > 0 && qf.queueFlags & VK_QUEUE_GRAPHICS_BIT)
           qf_indices_.m_graphics_family = i;
 
+        VkBool32 present_support_ = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &present_support_);
+
+        if (qf.queueCount > 0 && present_support_)
+          qf_indices_.m_present_family = i;
+
         if (qf_indices_.is_complete())
           break;
         
@@ -263,19 +271,30 @@ class VulkanApplication
     {
       QueueFamilyIndices qf_indices_ = find_queue_families(m_physical_device);
 
-      VkDeviceQueueCreateInfo queue_create_info_ = {};
-      queue_create_info_.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-      queue_create_info_.queueFamilyIndex = qf_indices_.m_graphics_family.value();
-      queue_create_info_.queueCount = 1;
+      std::vector<VkDeviceQueueCreateInfo> queue_create_infos_;
+      std::set<uint32_t> unique_queue_families_ = {
+        qf_indices_.m_graphics_family.value(),
+        qf_indices_.m_present_family.value()
+      };
+
       float queue_priority_ = 1.0f;
-      queue_create_info_.pQueuePriorities = & queue_priority_;
+
+      for (uint32_t qf : unique_queue_families_)
+      {
+        VkDeviceQueueCreateInfo queue_create_info_ = {};
+        queue_create_info_.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_info_.queueFamilyIndex = qf;
+        queue_create_info_.queueCount = 1;
+        queue_create_info_.pQueuePriorities = & queue_priority_;
+        queue_create_infos_.push_back(queue_create_info_);
+      }
 
       VkPhysicalDeviceFeatures device_features_ = {};
 
       VkDeviceCreateInfo device_create_info_ = {};
       device_create_info_.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-      device_create_info_.pQueueCreateInfos = &queue_create_info_;
-      device_create_info_.queueCreateInfoCount = 1;
+      device_create_info_.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos_.size());
+      device_create_info_.pQueueCreateInfos = queue_create_infos_.data();
       device_create_info_.pEnabledFeatures = &device_features_;
 
       device_create_info_.enabledExtensionCount = 0;
@@ -292,6 +311,7 @@ class VulkanApplication
         throw std::runtime_error("failed to create logical device!");
 
       vkGetDeviceQueue(m_device, qf_indices_.m_graphics_family.value(), 0, &m_graphics_queue);
+      vkGetDeviceQueue(m_device, qf_indices_.m_present_family.value(), 0, &m_present_queue);
     }
 
     void create_surface()
@@ -306,6 +326,7 @@ class VulkanApplication
     VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
     VkDevice m_device;
     VkQueue m_graphics_queue;
+    VkQueue m_present_queue;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
