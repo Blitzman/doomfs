@@ -337,9 +337,60 @@ class VulkanApplication
       vkGetDeviceQueue(m_device, qf_indices_.m_present_family.value(), 0, &m_present_queue);
     }
 
+    VkSurfaceFormatKHR choose_swap_surface_format(const std::vector<VkSurfaceFormatKHR>& crAvailableFormats)
+    {
+      // assert there are available formats
+
+      if (crAvailableFormats.size() == 1 && crAvailableFormats[0].format == VK_FORMAT_UNDEFINED)
+        return {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+
+      for (const auto& format : crAvailableFormats)
+        if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+          return format;
+
+      return crAvailableFormats[0];
+    }
+
+    VkPresentModeKHR choose_swap_present_mode(const std::vector<VkPresentModeKHR>& crAvailablePresentModes)
+    {
+      // Fall back to the only mode guaranteed to be available
+      VkPresentModeKHR mode_ = VK_PRESENT_MODE_FIFO_KHR;
+
+      for (const auto& mode : crAvailablePresentModes)
+        if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
+          return mode;
+        else if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+          mode_ = mode;
+
+      return mode_;
+    }
+
+    VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR& crCapabilities)
+    {
+      if (crCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+        return crCapabilities.currentExtent;
+      else
+      {
+        int window_width_;
+        int window_height_;
+
+        glfwGetWindowSize(*m_window, &window_width_, &window_height_);
+
+        VkExtent2D actual_extent_ = {static_cast<uint32_t>(window_width_), static_cast<uint32_t>(window_height_)};
+
+        actual_extent_.width = std::max(crCapabilities.minImageExtent.width,
+                                        std::min(crCapabilities.maxImageExtent.width,
+                                            actual_extent_.width));
+        actual_extent_.height = std::max(crCapabilities.minImageExtent.height,
+                                          std::min(crCapabilities.maxImageExtent.height,
+                                            actual_extent_.height));
+        return actual_extent_;
+      }
+    }
+
     void create_surface()
     {
-      if (glfwCreateWindowSurface(m_vk_instance, *m_window.get(), nullptr, &m_surface) != VK_SUCCESS)
+      if (glfwCreateWindowSurface(m_vk_instance, *m_window, nullptr, &m_surface) != VK_SUCCESS)
         throw std::runtime_error("Failed to create window surface!");
     }
 

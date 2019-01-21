@@ -49,7 +49,7 @@ class Application
     {
       std::cout << "Application loop...\n";
 
-	    while (!glfwWindowShouldClose(*m_window.get()))
+	    while (!glfwWindowShouldClose(*m_window))
 		    glfwPollEvents();
     }
 
@@ -61,7 +61,7 @@ class Application
       std::cout << "Cleaned Vulkan application...\n";
 
       std::cout << "Destroying GLFW Window Context" << std::endl;
-      glfwDestroyWindow(*m_window.get());
+      glfwDestroyWindow(*m_window);
 
       m_window.reset();
 	    glfwTerminate();
