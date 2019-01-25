@@ -13,17 +13,17 @@
 #include <glm/mat4x4.hpp>
 
 VkResult create_debug_utils_messengerext(
-      VkInstance instance,
-      const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-      const VkAllocationCallbacks* pAllocator,
-      VkDebugUtilsMessengerEXT* pCallback)
+        VkInstance instance,
+        const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkDebugUtilsMessengerEXT* pCallback)
 {
-  auto function_ = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    auto function_ = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
-  if (function_ != nullptr)
-    return function_(instance, pCreateInfo, pAllocator, pCallback);
-  else
-    return VK_ERROR_EXTENSION_NOT_PRESENT;
+    if (function_ != nullptr)
+        return function_(instance, pCreateInfo, pAllocator, pCallback);
+    else
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
 void destroy_debug_utils_messengerext(
@@ -31,10 +31,10 @@ void destroy_debug_utils_messengerext(
   VkDebugUtilsMessengerEXT callback,
   const VkAllocationCallbacks* pAllocator)
 {
-  auto function_ = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    auto function_ = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 
-  if (function_ != nullptr)
-    function_(instance, callback, pAllocator);
+    if (function_ != nullptr)
+        function_(instance, callback, pAllocator);
 }
 
 struct QueueFamilyIndices
@@ -50,9 +50,9 @@ struct QueueFamilyIndices
 
 struct SwapChainSupportDetails
 {
-  VkSurfaceCapabilitiesKHR m_capabilities;
-  std::vector<VkSurfaceFormatKHR> m_formats;
-  std::vector<VkPresentModeKHR> m_present_modes;
+    VkSurfaceCapabilitiesKHR m_capabilities;
+    std::vector<VkSurfaceFormatKHR> m_formats;
+    std::vector<VkPresentModeKHR> m_present_modes;
 };
 
 class VulkanApplication
@@ -75,23 +75,25 @@ class VulkanApplication
 
     VulkanApplication(std::shared_ptr<GLFWwindow*> pWindow)
     {
-      m_window = pWindow;
+        m_window = pWindow;
 
-      init_vulkan();
-      setup_debug_callback();
-      create_surface();
-      pick_physical_device();
-      create_logical_device();
+        init_vulkan();
+        setup_debug_callback();
+        create_surface();
+        pick_physical_device();
+        create_logical_device();
+        create_swap_chain();
     }
 
     ~VulkanApplication()
     {
-      if (kEnableValidationLayers)
-        destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
+        if (kEnableValidationLayers)
+            destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
-      vkDestroyDevice(m_device, nullptr);
-      vkDestroySurfaceKHR(m_vk_instance, m_surface, nullptr);
-      vkDestroyInstance(m_vk_instance, nullptr);
+        vkDestroySwapchainKHR(m_device, m_swap_chain, nullptr);
+        vkDestroyDevice(m_device, nullptr);
+        vkDestroySurfaceKHR(m_vk_instance, m_surface, nullptr);
+        vkDestroyInstance(m_vk_instance, nullptr);
     }
 
   private:
@@ -442,6 +444,54 @@ class VulkanApplication
       return details_;
     }
 
+    void create_swap_chain()
+    {
+        SwapChainSupportDetails swap_chain_support_ = query_swap_chain_support(m_physical_device);
+
+        VkSurfaceFormatKHR surface_format_ = choose_swap_surface_format(swap_chain_support_.m_formats);
+        VkPresentModeKHR present_mode_ = choose_swap_present_mode(swap_chain_support_.m_present_modes);
+        VkExtent2D extent_ = choose_swap_extent(swap_chain_support_.m_capabilities);
+
+        uint32_t image_count_ = swap_chain_support_.m_capabilities.minImageCount + 1;
+        if (swap_chain_support_.m_capabilities.maxImageCount > 0 && image_count_ > swap_chain_support_.m_capabilities.maxImageCount)
+            image_count_ = swap_chain_support_.m_capabilities.maxImageCount;
+
+        VkSwapchainCreateInfoKHR create_info_ = {};
+        create_info_.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        create_info_.surface = m_surface;
+        create_info_.minImageCount = image_count_;
+        create_info_.imageFormat = surface_format_.format;
+        create_info_.imageColorSpace = surface_format_.colorSpace;
+        create_info_.imageExtent = extent_;
+        create_info_.imageArrayLayers = 1;
+        create_info_.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        QueueFamilyIndices indices_ = find_queue_families(m_physical_device);
+        uint32_t qf_indices_[] = {
+            indices_.m_graphics_family.value(),
+            indices_.m_present_family.value()
+        };
+
+        if (indices_.m_graphics_family != indices_.m_present_family)
+        {
+            create_info_.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            create_info_.queueFamilyIndexCount = 2;
+            create_info_.pQueueFamilyIndices = qf_indices_;
+        }
+        else
+        {
+            create_info_.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            create_info_.queueFamilyIndexCount = 0;
+            create_info_.pQueueFamilyIndices = nullptr;
+        }
+
+        create_info_.preTransform = swap_chain_support_.m_capabilities.currentTransform;
+        create_info_.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        create_info_.presentMode = present_mode_;
+        create_info_.clipped = VK_TRUE;
+        create_info_.oldSwapchain = VK_NULL_HANDLE;
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -449,6 +499,7 @@ class VulkanApplication
     VkDevice m_device;
     VkQueue m_graphics_queue;
     VkQueue m_present_queue;
+    VkSwapchainKHR m_swap_chain;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
