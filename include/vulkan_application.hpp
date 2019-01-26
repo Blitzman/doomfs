@@ -83,12 +83,16 @@ class VulkanApplication
         pick_physical_device();
         create_logical_device();
         create_swap_chain();
+        create_image_views();
     }
 
     ~VulkanApplication()
     {
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
+
+        for (unsigned int i = 0; i < m_swap_chain_image_views.size(); ++i)
+          vkDestroyImageView(m_device, m_swap_chain_image_views[i], nullptr);
 
         vkDestroySwapchainKHR(m_device, m_swap_chain, nullptr);
         vkDestroyDevice(m_device, nullptr);
@@ -502,6 +506,32 @@ class VulkanApplication
         m_swap_chain_extent = extent_;
     }
 
+    void create_image_views()
+    {
+      m_swap_chain_image_views.resize(m_swap_chain_images.size());
+
+      for (unsigned int i = 0; i < m_swap_chain_images.size(); ++i)
+      {
+        VkImageViewCreateInfo create_info_ = {};
+        create_info_.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        create_info_.image = m_swap_chain_images[i];
+        create_info_.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        create_info_.format = m_swap_chain_format;
+        create_info_.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        create_info_.subresourceRange.baseMipLevel = 0;
+        create_info_.subresourceRange.levelCount = 1;
+        create_info_.subresourceRange.baseArrayLayer = 0;
+        create_info_.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &create_info_, nullptr, &m_swap_chain_image_views[i]) != VK_SUCCESS)
+          throw std::runtime_error("Failed to create image view!");
+      }
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -513,6 +543,7 @@ class VulkanApplication
     std::vector<VkImage> m_swap_chain_images;
     VkFormat m_swap_chain_format;
     VkExtent2D m_swap_chain_extent;
+    std::vector<VkImageView> m_swap_chain_image_views;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
