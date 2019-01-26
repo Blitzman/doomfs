@@ -490,6 +490,16 @@ class VulkanApplication
         create_info_.presentMode = present_mode_;
         create_info_.clipped = VK_TRUE;
         create_info_.oldSwapchain = VK_NULL_HANDLE;
+
+        if (vkCreateSwapchainKHR(m_device, &create_info_, nullptr, &m_swap_chain) != VK_SUCCESS)
+          throw std::runtime_error("Failed to create swap chain!");
+
+        vkGetSwapchainImagesKHR(m_device, m_swap_chain, &image_count_, nullptr);
+        m_swap_chain_images.resize(image_count_);
+        vkGetSwapchainImagesKHR(m_device, m_swap_chain, &image_count_, m_swap_chain_images.data());
+
+        m_swap_chain_format = surface_format_.format;
+        m_swap_chain_extent = extent_;
     }
 
     VkInstance m_vk_instance;
@@ -500,6 +510,9 @@ class VulkanApplication
     VkQueue m_graphics_queue;
     VkQueue m_present_queue;
     VkSwapchainKHR m_swap_chain;
+    std::vector<VkImage> m_swap_chain_images;
+    VkFormat m_swap_chain_format;
+    VkExtent2D m_swap_chain_extent;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
