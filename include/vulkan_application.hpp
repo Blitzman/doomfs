@@ -2,6 +2,7 @@
 #define VULKAN_APPLICATION_HPP_
 
 #include <experimental/optional>
+#include <fstream>
 #include <set>
 
 #define GLFW_INCLUDE_VULKAN
@@ -84,6 +85,7 @@ class VulkanApplication
         create_logical_device();
         create_swap_chain();
         create_image_views();
+        create_graphics_pipeline();
     }
 
     ~VulkanApplication()
@@ -530,6 +532,55 @@ class VulkanApplication
         if (vkCreateImageView(m_device, &create_info_, nullptr, &m_swap_chain_image_views[i]) != VK_SUCCESS)
           throw std::runtime_error("Failed to create image view!");
       }
+    }
+
+    std::vector<char> read_file(const std::string& crFilename)
+    {
+      std::ifstream f_(crFilename, std::ios::ate | std::ios::binary);
+
+      if (!f_.is_open())
+        throw std::runtime_error("Failed to open file " + crFilename + "!");
+
+      size_t file_size_ = (size_t)f_.tellg();
+      std::vector<char> buffer_(file_size_);
+
+      f_.seekg(0);
+      f_.read(buffer_.data(), file_size_);
+
+      f_.close();
+
+      return buffer_;
+    }
+
+    VkShaderModule create_shader_module(const std::vector<char>& crCode)
+    {
+      //TODO: assert device
+
+      VkShaderModuleCreateInfo create_info_ = {};
+      create_info_.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+      create_info_.codeSize = crCode.size();
+      create_info_.pCode = reinterpret_cast<const uint32_t*>(crCode.data());
+
+      VkShaderModule shader_module_;
+
+      if (vkCreateShaderModule(m_device, &create_info_, nullptr, &shader_module_) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create shader module!");
+
+      return shader_module_;
+    }
+
+    void create_graphics_pipeline()
+    {
+      //TODO: assert device
+
+      auto vertex_shader_code_ = read_file("shaders/vert.spv");
+      auto fragment_shader_code_ = read_file("shaders/frag.spv");
+
+      VkShaderModule vertex_shader_module_ = create_shader_module(vertex_shader_code_);
+      VkShaderModule fragment_shader_module_ = create_shader_module(fragment_shader_code_);
+
+      vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
+      vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
 
     VkInstance m_vk_instance;

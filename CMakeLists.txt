@@ -55,3 +55,12 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_SOURCE_DIR}/data/doom1.wad
                 ${CMAKE_CURRENT_BINARY_DIR}/doom1.wad)
+add_custom_command(
+        TARGET doomfs PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+add_custom_command(
+        TARGET doomfs POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/shaders/*
+                ${CMAKE_CURRENT_BINARY_DIR}/shaders)
