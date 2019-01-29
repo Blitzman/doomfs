@@ -571,16 +571,34 @@ class VulkanApplication
 
     void create_graphics_pipeline()
     {
-      //TODO: assert device
+        //TODO: assert device
 
-      auto vertex_shader_code_ = read_file("shaders/vert.spv");
-      auto fragment_shader_code_ = read_file("shaders/frag.spv");
+        auto vertex_shader_code_ = read_file("shaders/vert.spv");
+        auto fragment_shader_code_ = read_file("shaders/frag.spv");
 
-      VkShaderModule vertex_shader_module_ = create_shader_module(vertex_shader_code_);
-      VkShaderModule fragment_shader_module_ = create_shader_module(fragment_shader_code_);
+        VkShaderModule vertex_shader_module_ = create_shader_module(vertex_shader_code_);
+        VkShaderModule fragment_shader_module_ = create_shader_module(fragment_shader_code_);
 
-      vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
-      vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
+        // Shader stage creation
+        VkPipelineShaderStageCreateInfo vertex_shader_stage_info_ = {};
+        vertex_shader_stage_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertex_shader_stage_info_.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertex_shader_stage_info_.module = vertex_shader_module_;
+        vertex_shader_stage_info_.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragment_shader_stage_info_ = {};
+        fragment_shader_stage_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragment_shader_stage_info_.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragment_shader_stage_info_.module = vertex_shader_module_;
+        fragment_shader_stage_info_.pName = "main";
+
+        VkPipelineShaderStageCreateInfo shader_stages_[] = {
+            vertex_shader_stage_info_,
+            fragment_shader_stage_info_
+        };
+
+        vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
+        vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
 
     VkInstance m_vk_instance;
