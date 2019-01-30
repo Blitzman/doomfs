@@ -579,6 +579,13 @@ class VulkanApplication
       VkShaderModule vertex_shader_module_ = create_shader_module(vertex_shader_code_);
       VkShaderModule fragment_shader_module_ = create_shader_module(fragment_shader_code_);
 
+      VkPipelineVertexInputStateCreateInfo vertex_input_info_ = {};
+      vertex_input_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+      vertex_input_info_.vertexBindingDescriptionCount = 0;
+      vertex_input_info_.pVertexBindingDescriptions = nullptr;
+      vertex_input_info_.vertexAttributeDescriptionCount = 0;
+      vertex_input_info_.pVertexAttributeDescriptions = nullptr;
+
       vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
       vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
