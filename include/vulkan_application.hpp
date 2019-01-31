@@ -605,6 +605,33 @@ class VulkanApplication
         vertex_input_info_.vertexAttributeDescriptionCount = 0;
         vertex_input_info_.pVertexAttributeDescriptions = nullptr;
 
+        // Input assembly
+        VkPipelineInputAssemblyStateCreateInfo input_assembly_info_ = {};
+        input_assembly_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        input_assembly_info_.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        input_assembly_info_.primitiveRestartEnable = VK_FALSE;
+
+        // Viewport
+        VkViewport viewport_ = {};
+        viewport_.x = 0.0f;
+        viewport_.y = 0.0f;
+        viewport_.width = (float)m_swap_chain_extent.width;
+        viewport_.height = (float)m_swap_chain_extent.height;
+        viewport_.minDepth = 0.0f;
+        viewport_.maxDepth = 1.0f;
+
+        // Scissor
+        VkRect2D scissor_ = {};
+        scissor_.offset = {0, 0};
+        scissor_.extent = m_swap_chain_extent;
+
+        VkPipelineViewportStateCreateInfo viewport_state_info_ = {};
+        viewport_state_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewport_state_info_.viewportCount = 1;
+        viewport_state_info_.pViewports = &viewport_;
+        viewport_state_info_.scissorCount = 1;
+        viewport_state_info_.pScissors = &scissor_;
+
         vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
