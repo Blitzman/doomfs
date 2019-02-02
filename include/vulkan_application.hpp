@@ -632,6 +632,29 @@ class VulkanApplication
         viewport_state_info_.scissorCount = 1;
         viewport_state_info_.pScissors = &scissor_;
 
+        // Rasterizer
+        VkPipelineRasterizationStateCreateInfo rasterizer_info_ = {};
+        rasterizer_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer_info_.depthClampEnable = VK_FALSE;
+        rasterizer_info_.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer_info_.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer_info_.lineWidth = 1.0f;
+        rasterizer_info_.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer_info_.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer_info_.depthBiasEnable = VK_FALSE;
+        rasterizer_info_.depthBiasConstantFactor = 0.0f;
+        rasterizer_info_.depthBiasClamp = 0.0f;
+        rasterizer_info_.depthBiasSlopeFactor = 0.0f;
+
+        // Multisampling
+        VkPipelineMultisampleStateCreateInfo multisampling_info_ = {};
+        multisampling_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling_info_.sampleShadingEnable = VK_FALSE;
+        multisampling_info_.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        multisampling_info_.minSampleShading = 1.0f;
+        multisampling_info_.pSampleMask = nullptr;
+        multisampling_info_.alphaToCoverageEnable = VK_FALSE;
+
         vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
