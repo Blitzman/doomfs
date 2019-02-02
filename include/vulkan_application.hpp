@@ -655,6 +655,30 @@ class VulkanApplication
         multisampling_info_.pSampleMask = nullptr;
         multisampling_info_.alphaToCoverageEnable = VK_FALSE;
 
+        // Color blending
+        VkPipelineColorBlendAttachmentState colorblend_attachment_ = {};
+        colorblend_attachment_.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+            VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_A_BIT;
+        colorblend_attachment_.blendEnable = VK_TRUE;
+        colorblend_attachment_.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorblend_attachment_.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorblend_attachment_.colorBlendOp = VK_BLEND_OP_ADD;
+        colorblend_attachment_.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorblend_attachment_.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorblend_attachment_.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        VkPipelineColorBlendStateCreateInfo colorblend_info_ = {};
+        colorblend_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorblend_info_.logicOpEnable = VK_FALSE;
+        colorblend_info_.logicOp = VK_LOGIC_OP_COPY;
+        colorblend_info_.attachmentCount = 1;
+        colorblend_info_.pAttachments = &colorblend_attachment_;
+        colorblend_info_.blendConstants[0] = 0.0f;
+        colorblend_info_.blendConstants[1] = 0.0f;
+        colorblend_info_.blendConstants[2] = 0.0f;
+        colorblend_info_.blendConstants[3] = 0.0f;
+
         vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
