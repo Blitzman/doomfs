@@ -93,6 +93,8 @@ class VulkanApplication
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
+        vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+
         for (unsigned int i = 0; i < m_swap_chain_image_views.size(); ++i)
           vkDestroyImageView(m_device, m_swap_chain_image_views[i], nullptr);
 
@@ -679,6 +681,28 @@ class VulkanApplication
         colorblend_info_.blendConstants[2] = 0.0f;
         colorblend_info_.blendConstants[3] = 0.0f;
 
+        // Dynamic state
+        VkDynamicState dynamic_states_[] = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_LINE_WIDTH
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicstate_info_ = {};
+        dynamicstate_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicstate_info_.dynamicStateCount = 2;
+        dynamicstate_info_.pDynamicStates = dynamic_states_;
+
+        // Pipeline layout
+        VkPipelineLayoutCreateInfo pipelinelayout_info_ = {};
+        pipelinelayout_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelinelayout_info_.setLayoutCount = 0;
+        pipelinelayout_info_.pSetLayouts = nullptr;
+        pipelinelayout_info_.pushConstantRangeCount = 0;
+        pipelinelayout_info_.pPushConstantRanges = nullptr;
+
+        if (vkCreatePipelineLayout(m_device, &pipelinelayout_info_, nullptr, &m_pipeline_layout) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create pipeline layout!");
+
         vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
@@ -695,6 +719,7 @@ class VulkanApplication
     VkFormat m_swap_chain_format;
     VkExtent2D m_swap_chain_extent;
     std::vector<VkImageView> m_swap_chain_image_views;
+    VkPipelineLayout m_pipeline_layout;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
