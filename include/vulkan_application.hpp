@@ -85,6 +85,7 @@ class VulkanApplication
         create_logical_device();
         create_swap_chain();
         create_image_views();
+        create_render_pass();
         create_graphics_pipeline();
     }
 
@@ -705,6 +706,32 @@ class VulkanApplication
 
         vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
+    }
+
+    void create_render_pass()
+    {
+      VkAttachmentDescription color_attachment_ = {};
+
+      color_attachment_.format = m_swap_chain_format;
+      color_attachment_.samples = VK_SAMPLE_COUNT_1_BIT;
+
+      color_attachment_.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+      color_attachment_.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+      color_attachment_.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+      color_attachment_.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+      color_attachment_.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      color_attachment_.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+      VkAttachmentReference color_attachment_ref_ = {};
+      color_attachment_ref_.attachment = 0;
+      color_attachment_ref_.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+      VkSubpassDescription subpass_ = {};
+      subpass_.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+      subpass_.colorAttachmentCount = 1;
+      subpass_.pColorAttachments = &color_attachment_ref_;
     }
 
     VkInstance m_vk_instance;
