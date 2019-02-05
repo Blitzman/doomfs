@@ -94,7 +94,9 @@ class VulkanApplication
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
+        vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+        vkDestroyRenderPass(m_device, m_render_pass, nullptr);
 
         for (unsigned int i = 0; i < m_swap_chain_image_views.size(); ++i)
           vkDestroyImageView(m_device, m_swap_chain_image_views[i], nullptr);
@@ -592,7 +594,7 @@ class VulkanApplication
         VkPipelineShaderStageCreateInfo fragment_shader_stage_info_ = {};
         fragment_shader_stage_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         fragment_shader_stage_info_.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragment_shader_stage_info_.module = vertex_shader_module_;
+        fragment_shader_stage_info_.module = fragment_shader_module_;
         fragment_shader_stage_info_.pName = "main";
 
         VkPipelineShaderStageCreateInfo shader_stages_[] = {
@@ -704,6 +706,27 @@ class VulkanApplication
         if (vkCreatePipelineLayout(m_device, &pipelinelayout_info_, nullptr, &m_pipeline_layout) != VK_SUCCESS)
             throw std::runtime_error("Failed to create pipeline layout!");
 
+        VkGraphicsPipelineCreateInfo pipeline_info_ = {};
+        pipeline_info_.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipeline_info_.stageCount = 2;
+        pipeline_info_.pStages = shader_stages_;
+        pipeline_info_.pVertexInputState = &vertex_input_info_;
+        pipeline_info_.pInputAssemblyState = &input_assembly_info_;
+        pipeline_info_.pViewportState = &viewport_state_info_;
+        pipeline_info_.pRasterizationState = &rasterizer_info_;
+        pipeline_info_.pMultisampleState = &multisampling_info_;
+        pipeline_info_.pDepthStencilState = nullptr;
+        pipeline_info_.pColorBlendState = &colorblend_info_;
+        pipeline_info_.pDynamicState = nullptr;
+        pipeline_info_.layout = m_pipeline_layout;
+        pipeline_info_.renderPass = m_render_pass;
+        pipeline_info_.subpass = 0;
+        pipeline_info_.basePipelineHandle = VK_NULL_HANDLE;
+        pipeline_info_.basePipelineIndex = -1;
+
+        if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipeline_info_, nullptr, &m_graphics_pipeline) != VK_SUCCESS)
+          throw std::runtime_error("Failed to create graphics pipeline!");
+
         vkDestroyShaderModule(m_device, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(m_device, vertex_shader_module_, nullptr);
     }
@@ -732,6 +755,16 @@ class VulkanApplication
       subpass_.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
       subpass_.colorAttachmentCount = 1;
       subpass_.pColorAttachments = &color_attachment_ref_;
+
+      VkRenderPassCreateInfo render_pass_info_ = {};
+      render_pass_info_.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+      render_pass_info_.attachmentCount = 1;
+      render_pass_info_.pAttachments = &color_attachment_;
+      render_pass_info_.subpassCount = 1;
+      render_pass_info_.pSubpasses = &subpass_;
+      
+      if (vkCreateRenderPass(m_device, &render_pass_info_, nullptr, &m_render_pass) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create render pass!");
     }
 
     VkInstance m_vk_instance;
@@ -747,6 +780,8 @@ class VulkanApplication
     VkExtent2D m_swap_chain_extent;
     std::vector<VkImageView> m_swap_chain_image_views;
     VkPipelineLayout m_pipeline_layout;
+    VkRenderPass m_render_pass;
+    VkPipeline m_graphics_pipeline;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
