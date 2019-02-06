@@ -87,12 +87,16 @@ class VulkanApplication
         create_image_views();
         create_render_pass();
         create_graphics_pipeline();
+        create_framebuffers();
     }
 
     ~VulkanApplication()
     {
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
+
+        for (auto fb : m_swap_chain_framebuffers)
+            vkDestroyFramebuffer(m_device, fb, nullptr);
 
         vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
@@ -767,6 +771,30 @@ class VulkanApplication
         throw std::runtime_error("Failed to create render pass!");
     }
 
+    void create_framebuffers()
+    {
+        m_swap_chain_framebuffers.resize(m_swap_chain_image_views.size());
+
+        for (size_t i = 0; i < m_swap_chain_image_views.size(); ++i)
+        {
+            VkImageView attachments_[] = {
+                m_swap_chain_image_views[i]
+            };
+
+            VkFramebufferCreateInfo framebuffer_info_ = {};
+            framebuffer_info_.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebuffer_info_.renderPass = m_render_pass;
+            framebuffer_info_.attachmentCount = 1;
+            framebuffer_info_.pAttachments = attachments_;
+            framebuffer_info_.width = m_swap_chain_extent.width;
+            framebuffer_info_.height = m_swap_chain_extent.height;
+            framebuffer_info_.layers = 1;
+
+            if (vkCreateFramebuffer(m_device, &framebuffer_info_, nullptr, &m_swap_chain_framebuffers[i]) != VK_SUCCESS)
+                throw std::runtime_error("Failed to create framebuffer!");
+        }
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -782,6 +810,7 @@ class VulkanApplication
     VkPipelineLayout m_pipeline_layout;
     VkRenderPass m_render_pass;
     VkPipeline m_graphics_pipeline;
+    std::vector<VkFramebuffer> m_swap_chain_framebuffers;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
