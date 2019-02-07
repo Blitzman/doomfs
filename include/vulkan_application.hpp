@@ -88,6 +88,7 @@ class VulkanApplication
         create_render_pass();
         create_graphics_pipeline();
         create_framebuffers();
+        create_commandpool();
     }
 
     ~VulkanApplication()
@@ -95,6 +96,8 @@ class VulkanApplication
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
+        vkDestroyCommandPool(m_device, m_commandpool, nullptr);
+        
         for (auto fb : m_swap_chain_framebuffers)
             vkDestroyFramebuffer(m_device, fb, nullptr);
 
@@ -795,6 +798,19 @@ class VulkanApplication
         }
     }
 
+    void create_commandpool()
+    {
+        QueueFamilyIndices qf_indices_ = find_queue_families(m_physical_device);
+
+        VkCommandPoolCreateInfo pool_info_ = {};
+        pool_info_.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        pool_info_.queueFamilyIndex = qf_indices_.m_graphics_family.value();
+        pool_info_.flags = 0;
+
+        if (vkCreateCommandPool(m_device, &pool_info_, nullptr, &m_commandpool) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create command pool!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -811,6 +827,7 @@ class VulkanApplication
     VkRenderPass m_render_pass;
     VkPipeline m_graphics_pipeline;
     std::vector<VkFramebuffer> m_swap_chain_framebuffers;
+    VkCommandPool m_commandpool;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
