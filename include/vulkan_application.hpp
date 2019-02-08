@@ -89,6 +89,7 @@ class VulkanApplication
         create_graphics_pipeline();
         create_framebuffers();
         create_commandpool();
+        create_commandbuffers();
     }
 
     ~VulkanApplication()
@@ -97,7 +98,7 @@ class VulkanApplication
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
         vkDestroyCommandPool(m_device, m_commandpool, nullptr);
-        
+
         for (auto fb : m_swap_chain_framebuffers)
             vkDestroyFramebuffer(m_device, fb, nullptr);
 
@@ -811,6 +812,20 @@ class VulkanApplication
             throw std::runtime_error("Failed to create command pool!");
     }
 
+    void create_commandbuffers()
+    {
+        m_commandbuffers.resize(m_swap_chain_framebuffers.size());
+
+        VkCommandBufferAllocateInfo alloc_info_ = {};
+        alloc_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info_.commandPool = m_commandpool;
+        alloc_info_.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info_.commandBufferCount = (uint32_t) m_commandbuffers.size();
+
+        if (vkAllocateCommandBuffers(m_device, &alloc_info_, m_commandbuffers.data()) != VK_SUCCESS)
+            throw std::runtime_error("Failed to allocate command buffers!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -828,6 +843,7 @@ class VulkanApplication
     VkPipeline m_graphics_pipeline;
     std::vector<VkFramebuffer> m_swap_chain_framebuffers;
     VkCommandPool m_commandpool;
+    std::vector<VkCommandBuffer> m_commandbuffers;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
