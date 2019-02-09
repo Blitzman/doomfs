@@ -824,6 +824,40 @@ class VulkanApplication
 
         if (vkAllocateCommandBuffers(m_device, &alloc_info_, m_commandbuffers.data()) != VK_SUCCESS)
             throw std::runtime_error("Failed to allocate command buffers!");
+
+        for (size_t i = 0; i < m_commandbuffers.size(); ++i)
+        {
+          VkCommandBufferBeginInfo begin_info_ = {};
+          begin_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+          begin_info_.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+          begin_info_.pInheritanceInfo = nullptr;
+
+          if (vkBeginCommandBuffer(m_commandbuffers[i], &begin_info_) != VK_SUCCESS)
+            throw std::runtime_error("Failed to begin recording command buffer!");
+
+          VkRenderPassBeginInfo renderpass_info_ = {};
+          renderpass_info_.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+          renderpass_info_.renderPass = m_render_pass;
+          renderpass_info_.framebuffer = m_swap_chain_framebuffers[i];
+
+          renderpass_info_.renderArea.offset = {0, 0};
+          renderpass_info_.renderArea.extent = m_swap_chain_extent;
+
+          VkClearValue clear_color_ = {0.0f, 0.0f, 0.0f, 1.0f};
+          renderpass_info_.clearValueCount = 1;
+          renderpass_info_.pClearValues = &clear_color_;
+
+          vkCmdBeginRenderPass(m_commandbuffers[i], &renderpass_info_, VK_SUBPASS_CONTENTS_INLINE);
+
+          vkCmdBindPipeline(m_commandbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline);
+
+          vkCmdDraw(m_commandbuffers[i], 3, 1, 0, 0);
+
+          vkCmdEndRenderPass(m_commandbuffers[i]);
+
+          if (vkEndCommandBuffer(m_commandbuffers[i]) != VK_SUCCESS)
+            throw std::runtime_error("Failed to record command buffer!");
+        }
     }
 
     VkInstance m_vk_instance;
