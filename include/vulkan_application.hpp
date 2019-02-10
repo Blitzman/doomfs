@@ -90,12 +90,16 @@ class VulkanApplication
         create_framebuffers();
         create_commandpool();
         create_commandbuffers();
+        create_semaphores();
     }
 
     ~VulkanApplication()
     {
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
+
+        vkDestroySemaphore(m_device, m_render_finished_semaphore, nullptr);
+        vkDestroySemaphore(m_device, m_image_available_semaphore, nullptr);
 
         vkDestroyCommandPool(m_device, m_commandpool, nullptr);
 
@@ -113,6 +117,11 @@ class VulkanApplication
         vkDestroyDevice(m_device, nullptr);
         vkDestroySurfaceKHR(m_vk_instance, m_surface, nullptr);
         vkDestroyInstance(m_vk_instance, nullptr);
+    }
+
+    void draw_frame()
+    {
+
     }
 
   private:
@@ -860,6 +869,16 @@ class VulkanApplication
         }
     }
 
+    void create_semaphores()
+    {
+      VkSemaphoreCreateInfo semaphore_info_ = {};
+      semaphore_info_.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+      if (vkCreateSemaphore(m_device, &semaphore_info_, nullptr, &m_image_available_semaphore) != VK_SUCCESS ||
+          vkCreateSemaphore(m_device, &semaphore_info_, nullptr, &m_render_finished_semaphore) != VK_SUCCESS)
+          throw std::runtime_error("Failed to create semaphores!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -878,6 +897,9 @@ class VulkanApplication
     std::vector<VkFramebuffer> m_swap_chain_framebuffers;
     VkCommandPool m_commandpool;
     std::vector<VkCommandBuffer> m_commandbuffers;
+
+    VkSemaphore m_image_available_semaphore;
+    VkSemaphore m_render_finished_semaphore;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
