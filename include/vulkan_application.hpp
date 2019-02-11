@@ -121,7 +121,35 @@ class VulkanApplication
 
     void draw_frame()
     {
+        uint32_t image_index_;
 
+        vkAcquireNextImageKHR(m_device,
+                              m_swap_chain,
+                              std::numeric_limits<uint64_t>::max(),
+                              m_image_available_semaphore,
+                              VK_NULL_HANDLE,
+                              &image_index_);
+
+        VkSubmitInfo submit_info_ = {};
+        submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore wait_semaphores_[] = {m_image_available_semaphore};
+        VkPipelineStageFlags wait_stages_[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+        submit_info_.waitSemaphoreCount = 1;
+        submit_info_.pWaitSemaphores = wait_semaphores_;
+        submit_info_.pWaitDstStageMask = wait_stages_;
+
+        submit_info_.commandBufferCount = 1;
+        submit_info_.pCommandBuffers = &m_commandbuffers[image_index_];
+
+        VkSemaphore signal_semaphores_[] = {m_render_finished_semaphore};
+
+        submit_info_.signalSemaphoreCount = 1;
+        submit_info_.pSignalSemaphores = signal_semaphores_;
+
+        if (vkQueueSubmit(m_graphics_queue, 1, &submit_info_, VK_NULL_HANDLE) != VK_SUCCESS)
+            throw std::runtime_error("Failed to submit draw command buffer!");
     }
 
   private:
