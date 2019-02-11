@@ -150,6 +150,25 @@ class VulkanApplication
 
         if (vkQueueSubmit(m_graphics_queue, 1, &submit_info_, VK_NULL_HANDLE) != VK_SUCCESS)
             throw std::runtime_error("Failed to submit draw command buffer!");
+
+        VkPresentInfoKHR present_info_ = {};
+        present_info_.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        present_info_.waitSemaphoreCount = 1;
+        present_info_.pWaitSemaphores = signal_semaphores_;
+
+        VkSwapchainKHR swap_chains_[] = { m_swap_chain };
+        present_info_.swapchainCount = 1;
+        present_info_.pSwapchains = swap_chains_;
+        present_info_.pImageIndices = &image_index_;
+
+        present_info_.pResults = nullptr;
+
+        vkQueuePresentKHR(m_present_queue, &present_info_);
+    }
+
+    void wait_device()
+    {
+        vkDeviceWaitIdle(m_device);
     }
 
   private:
@@ -778,38 +797,48 @@ class VulkanApplication
 
     void create_render_pass()
     {
-      VkAttachmentDescription color_attachment_ = {};
+        VkAttachmentDescription color_attachment_ = {};
 
-      color_attachment_.format = m_swap_chain_format;
-      color_attachment_.samples = VK_SAMPLE_COUNT_1_BIT;
+        color_attachment_.format = m_swap_chain_format;
+        color_attachment_.samples = VK_SAMPLE_COUNT_1_BIT;
 
-      color_attachment_.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-      color_attachment_.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        color_attachment_.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color_attachment_.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-      color_attachment_.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-      color_attachment_.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        color_attachment_.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        color_attachment_.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-      color_attachment_.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-      color_attachment_.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        color_attachment_.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        color_attachment_.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-      VkAttachmentReference color_attachment_ref_ = {};
-      color_attachment_ref_.attachment = 0;
-      color_attachment_ref_.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference color_attachment_ref_ = {};
+        color_attachment_ref_.attachment = 0;
+        color_attachment_ref_.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-      VkSubpassDescription subpass_ = {};
-      subpass_.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-      subpass_.colorAttachmentCount = 1;
-      subpass_.pColorAttachments = &color_attachment_ref_;
+        VkSubpassDescription subpass_ = {};
+        subpass_.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass_.colorAttachmentCount = 1;
+        subpass_.pColorAttachments = &color_attachment_ref_;
 
-      VkRenderPassCreateInfo render_pass_info_ = {};
-      render_pass_info_.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-      render_pass_info_.attachmentCount = 1;
-      render_pass_info_.pAttachments = &color_attachment_;
-      render_pass_info_.subpassCount = 1;
-      render_pass_info_.pSubpasses = &subpass_;
-      
-      if (vkCreateRenderPass(m_device, &render_pass_info_, nullptr, &m_render_pass) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create render pass!");
+        VkSubpassDependency dependency_ = {};
+        dependency_.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency_.dstSubpass = 0;
+        dependency_.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency_.srcAccessMask = 0;
+        dependency_.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency_.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        VkRenderPassCreateInfo render_pass_info_ = {};
+        render_pass_info_.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        render_pass_info_.attachmentCount = 1;
+        render_pass_info_.pAttachments = &color_attachment_;
+        render_pass_info_.subpassCount = 1;
+        render_pass_info_.pSubpasses = &subpass_;
+        render_pass_info_.dependencyCount = 1;
+        render_pass_info_.pDependencies = &dependency_;
+        
+        if (vkCreateRenderPass(m_device, &render_pass_info_, nullptr, &m_render_pass) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create render pass!");
     }
 
     void create_framebuffers()
