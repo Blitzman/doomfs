@@ -49,8 +49,13 @@ class Application
     {
       std::cout << "Application loop...\n";
 
-	    while (!glfwWindowShouldClose(*m_window))
-		    glfwPollEvents();
+        while (!glfwWindowShouldClose(*m_window))
+        {
+            glfwPollEvents();
+            m_vulkan->draw_frame();
+        }
+
+        m_vulkan->wait_device();
     }
 
     void cleanup()

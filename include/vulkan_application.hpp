@@ -64,6 +64,8 @@ class VulkanApplication
     const bool kEnableValidationLayers = true;
   #endif
 
+  const int kMaxFramesInFlight = 2;
+
   const std::vector<const char*> kValidationLayers = {
     "VK_LAYER_LUNARG_standard_validation"
   };
@@ -77,6 +79,7 @@ class VulkanApplication
     VulkanApplication(std::shared_ptr<GLFWwindow*> pWindow)
     {
         m_window = pWindow;
+        m_current_frame = 0;
 
         init_vulkan();
         setup_debug_callback();
@@ -91,6 +94,7 @@ class VulkanApplication
         create_commandpool();
         create_commandbuffers();
         create_semaphores();
+        create_fences();
     }
 
     ~VulkanApplication()
@@ -98,8 +102,14 @@ class VulkanApplication
         if (kEnableValidationLayers)
             destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
 
-        vkDestroySemaphore(m_device, m_render_finished_semaphore, nullptr);
-        vkDestroySemaphore(m_device, m_image_available_semaphore, nullptr);
+        for (size_t i = 0; i < kMaxFramesInFlight; ++i)
+            vkDestroyFence(m_device, m_inflight_fences[i], nullptr);
+
+        for (size_t i = 0; i < kMaxFramesInFlight; ++i)
+        {
+            vkDestroySemaphore(m_device, m_render_finished_semaphores[i], nullptr);
+            vkDestroySemaphore(m_device, m_image_available_semaphores[i], nullptr);
+        }
 
         vkDestroyCommandPool(m_device, m_commandpool, nullptr);
 
@@ -123,17 +133,20 @@ class VulkanApplication
     {
         uint32_t image_index_;
 
+        vkWaitForFences(m_device, 1, &m_inflight_fences[m_current_frame], VK_TRUE, std::numeric_limits<uint64_t>::max());
+        vkResetFences(m_device, 1, &m_inflight_fences[m_current_frame]);
+
         vkAcquireNextImageKHR(m_device,
                               m_swap_chain,
                               std::numeric_limits<uint64_t>::max(),
-                              m_image_available_semaphore,
+                              m_image_available_semaphores[m_current_frame],
                               VK_NULL_HANDLE,
                               &image_index_);
 
         VkSubmitInfo submit_info_ = {};
         submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore wait_semaphores_[] = {m_image_available_semaphore};
+        VkSemaphore wait_semaphores_[] = {m_image_available_semaphores[m_current_frame]};
         VkPipelineStageFlags wait_stages_[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
         submit_info_.waitSemaphoreCount = 1;
@@ -143,12 +156,12 @@ class VulkanApplication
         submit_info_.commandBufferCount = 1;
         submit_info_.pCommandBuffers = &m_commandbuffers[image_index_];
 
-        VkSemaphore signal_semaphores_[] = {m_render_finished_semaphore};
+        VkSemaphore signal_semaphores_[] = {m_render_finished_semaphores[m_current_frame]};
 
         submit_info_.signalSemaphoreCount = 1;
         submit_info_.pSignalSemaphores = signal_semaphores_;
 
-        if (vkQueueSubmit(m_graphics_queue, 1, &submit_info_, VK_NULL_HANDLE) != VK_SUCCESS)
+        if (vkQueueSubmit(m_graphics_queue, 1, &submit_info_, m_inflight_fences[m_current_frame]) != VK_SUCCESS)
             throw std::runtime_error("Failed to submit draw command buffer!");
 
         VkPresentInfoKHR present_info_ = {};
@@ -164,6 +177,10 @@ class VulkanApplication
         present_info_.pResults = nullptr;
 
         vkQueuePresentKHR(m_present_queue, &present_info_);
+
+        vkQueueWaitIdle(m_present_queue);
+
+        m_current_frame = (m_current_frame + 1) % kMaxFramesInFlight;
     }
 
     void wait_device()
@@ -928,12 +945,31 @@ class VulkanApplication
 
     void create_semaphores()
     {
-      VkSemaphoreCreateInfo semaphore_info_ = {};
-      semaphore_info_.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        m_image_available_semaphores.resize(kMaxFramesInFlight);
+        m_render_finished_semaphores.resize(kMaxFramesInFlight);
 
-      if (vkCreateSemaphore(m_device, &semaphore_info_, nullptr, &m_image_available_semaphore) != VK_SUCCESS ||
-          vkCreateSemaphore(m_device, &semaphore_info_, nullptr, &m_render_finished_semaphore) != VK_SUCCESS)
-          throw std::runtime_error("Failed to create semaphores!");
+        VkSemaphoreCreateInfo semaphore_info_ = {};
+        semaphore_info_.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        for (size_t i = 0; i < kMaxFramesInFlight; ++i)
+        {
+            if (vkCreateSemaphore(m_device, &semaphore_info_, nullptr, &m_image_available_semaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(m_device, &semaphore_info_, nullptr, &m_render_finished_semaphores[i]) != VK_SUCCESS)
+                    throw std::runtime_error("Failed to create semaphores!");
+        }
+    }
+
+    void create_fences()
+    {
+        m_inflight_fences.resize(kMaxFramesInFlight);
+
+        VkFenceCreateInfo fence_info_ = {};
+        fence_info_.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_info_.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        for (size_t i = 0; i < kMaxFramesInFlight; ++i)
+            if (vkCreateFence(m_device, &fence_info_, nullptr, &m_inflight_fences[i]) != VK_SUCCESS)
+                throw std::runtime_error("Failed to create fence!");
     }
 
     VkInstance m_vk_instance;
@@ -955,8 +991,10 @@ class VulkanApplication
     VkCommandPool m_commandpool;
     std::vector<VkCommandBuffer> m_commandbuffers;
 
-    VkSemaphore m_image_available_semaphore;
-    VkSemaphore m_render_finished_semaphore;
+    std::vector<VkSemaphore> m_image_available_semaphores;
+    std::vector<VkSemaphore> m_render_finished_semaphores;
+    std::vector<VkFence> m_inflight_fences;
+    size_t m_current_frame;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
