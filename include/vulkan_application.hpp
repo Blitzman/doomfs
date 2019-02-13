@@ -79,7 +79,11 @@ class VulkanApplication
     VulkanApplication(std::shared_ptr<GLFWwindow*> pWindow)
     {
         m_window = pWindow;
+        glfwSetWindowUserPointer(*m_window, this);
+        glfwSetFramebufferSizeCallback(*m_window, framebuffer_resize_callback);
+
         m_current_frame = 0;
+        m_framebuffer_resized = false;
 
         init_vulkan();
         setup_debug_callback();
@@ -99,8 +103,7 @@ class VulkanApplication
 
     ~VulkanApplication()
     {
-        if (kEnableValidationLayers)
-            destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
+        cleanup_swapchain();
 
         for (size_t i = 0; i < kMaxFramesInFlight; ++i)
             vkDestroyFence(m_device, m_inflight_fences[i], nullptr);
@@ -112,19 +115,12 @@ class VulkanApplication
         }
 
         vkDestroyCommandPool(m_device, m_commandpool, nullptr);
-
-        for (auto fb : m_swap_chain_framebuffers)
-            vkDestroyFramebuffer(m_device, fb, nullptr);
-
-        vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
-        vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
-        vkDestroyRenderPass(m_device, m_render_pass, nullptr);
-
-        for (unsigned int i = 0; i < m_swap_chain_image_views.size(); ++i)
-          vkDestroyImageView(m_device, m_swap_chain_image_views[i], nullptr);
-
-        vkDestroySwapchainKHR(m_device, m_swap_chain, nullptr);
+        
         vkDestroyDevice(m_device, nullptr);
+
+        if (kEnableValidationLayers)
+            destroy_debug_utils_messengerext(m_vk_instance, m_callback, nullptr);
+
         vkDestroySurfaceKHR(m_vk_instance, m_surface, nullptr);
         vkDestroyInstance(m_vk_instance, nullptr);
     }
@@ -134,14 +130,21 @@ class VulkanApplication
         uint32_t image_index_;
 
         vkWaitForFences(m_device, 1, &m_inflight_fences[m_current_frame], VK_TRUE, std::numeric_limits<uint64_t>::max());
-        vkResetFences(m_device, 1, &m_inflight_fences[m_current_frame]);
 
-        vkAcquireNextImageKHR(m_device,
-                              m_swap_chain,
-                              std::numeric_limits<uint64_t>::max(),
-                              m_image_available_semaphores[m_current_frame],
-                              VK_NULL_HANDLE,
-                              &image_index_);
+        VkResult result_ = vkAcquireNextImageKHR(m_device,
+                                                 m_swap_chain,
+                                                 std::numeric_limits<uint64_t>::max(),
+                                                 m_image_available_semaphores[m_current_frame],
+                                                 VK_NULL_HANDLE,
+                                                 &image_index_);
+
+        if (result_ == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            recreate_swapchain();
+            return;
+        }
+        else if (result_ != VK_SUCCESS && result_ != VK_SUBOPTIMAL_KHR)
+            throw std::runtime_error("Failed to acquire swap chain image!");
 
         VkSubmitInfo submit_info_ = {};
         submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -161,6 +164,8 @@ class VulkanApplication
         submit_info_.signalSemaphoreCount = 1;
         submit_info_.pSignalSemaphores = signal_semaphores_;
 
+        vkResetFences(m_device, 1, &m_inflight_fences[m_current_frame]);
+
         if (vkQueueSubmit(m_graphics_queue, 1, &submit_info_, m_inflight_fences[m_current_frame]) != VK_SUCCESS)
             throw std::runtime_error("Failed to submit draw command buffer!");
 
@@ -176,7 +181,15 @@ class VulkanApplication
 
         present_info_.pResults = nullptr;
 
-        vkQueuePresentKHR(m_present_queue, &present_info_);
+        result_ = vkQueuePresentKHR(m_present_queue, &present_info_);
+
+        if (result_ == VK_ERROR_OUT_OF_DATE_KHR || result_ == VK_SUBOPTIMAL_KHR || m_framebuffer_resized)
+        {
+            m_framebuffer_resized = false;
+            recreate_swapchain();
+        }
+        else if (result_ != VK_SUCCESS)
+            throw std::runtime_error("Failed to present swap chain image!");
 
         vkQueueWaitIdle(m_present_queue);
 
@@ -488,7 +501,7 @@ class VulkanApplication
         int window_width_;
         int window_height_;
 
-        glfwGetWindowSize(*m_window, &window_width_, &window_height_);
+        glfwGetFramebufferSize(*m_window, &window_width_, &window_height_);
 
         VkExtent2D actual_extent_ = {static_cast<uint32_t>(window_width_), static_cast<uint32_t>(window_height_)};
 
@@ -972,6 +985,52 @@ class VulkanApplication
                 throw std::runtime_error("Failed to create fence!");
     }
 
+    void cleanup_swapchain()
+    {
+        for (auto fb : m_swap_chain_framebuffers)
+            vkDestroyFramebuffer(m_device, fb, nullptr);
+
+        vkFreeCommandBuffers(m_device, m_commandpool, static_cast<uint32_t>(m_commandbuffers.size()), m_commandbuffers.data());
+
+        vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
+        vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+        vkDestroyRenderPass(m_device, m_render_pass, nullptr);
+
+        for (unsigned int i = 0; i < m_swap_chain_image_views.size(); ++i)
+          vkDestroyImageView(m_device, m_swap_chain_image_views[i], nullptr);
+
+        vkDestroySwapchainKHR(m_device, m_swap_chain, nullptr);
+    }
+
+    void recreate_swapchain()
+    {
+        int width_ = 0;
+        int height_ = 0;
+
+        while (width_ == 0 || height_ == 0)
+        {
+            glfwGetFramebufferSize(*m_window, &width_, &height_);
+            glfwWaitEvents();
+        }
+
+        vkDeviceWaitIdle(m_device);
+
+        cleanup_swapchain();
+
+        create_swap_chain();
+        create_image_views();
+        create_render_pass();
+        create_graphics_pipeline();
+        create_framebuffers();
+        create_commandbuffers();
+    }
+
+    static void framebuffer_resize_callback(GLFWwindow* rWindow, int width, int height)
+    {
+        auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(rWindow));
+        app->m_framebuffer_resized = true;
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -995,6 +1054,7 @@ class VulkanApplication
     std::vector<VkSemaphore> m_render_finished_semaphores;
     std::vector<VkFence> m_inflight_fences;
     size_t m_current_frame;
+    bool m_framebuffer_resized;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
