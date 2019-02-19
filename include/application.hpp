@@ -10,11 +10,19 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "vertex.hpp"
 #include "vulkan_application.hpp"
 
 class Application
 {
   public:
+
+    const std::vector<Vertex> kVertices =
+    {
+      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    };
 
     Application()
     {

@@ -697,12 +697,15 @@ class VulkanApplication
         };
 
         // Vertex input
+        auto binding_description_ = Vertex::get_binding_description();
+        auto attribute_descriptions_ = Vertex::get_attribute_descriptions();
+
         VkPipelineVertexInputStateCreateInfo vertex_input_info_ = {};
         vertex_input_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertex_input_info_.vertexBindingDescriptionCount = 0;
-        vertex_input_info_.pVertexBindingDescriptions = nullptr;
-        vertex_input_info_.vertexAttributeDescriptionCount = 0;
-        vertex_input_info_.pVertexAttributeDescriptions = nullptr;
+        vertex_input_info_.vertexBindingDescriptionCount = 1;
+        vertex_input_info_.pVertexBindingDescriptions = &binding_description_;
+        vertex_input_info_.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descriptions_.size());
+        vertex_input_info_.pVertexAttributeDescriptions = attribute_descriptions_.data();
 
         // Input assembly
         VkPipelineInputAssemblyStateCreateInfo input_assembly_info_ = {};
