@@ -76,7 +76,7 @@ class VulkanApplication
 
   const std::vector<Vertex> kVertices =
   {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
     {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
   };
@@ -770,8 +770,10 @@ class VulkanApplication
 
         // Color blending
         VkPipelineColorBlendAttachmentState colorblend_attachment_ = {};
-        colorblend_attachment_.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+        colorblend_attachment_.colorWriteMask = 
+            VK_COLOR_COMPONENT_R_BIT |
             VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_B_BIT |
             VK_COLOR_COMPONENT_A_BIT;
         colorblend_attachment_.blendEnable = VK_TRUE;
         colorblend_attachment_.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
