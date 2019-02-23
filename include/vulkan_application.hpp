@@ -1064,34 +1064,81 @@ class VulkanApplication
       throw std::runtime_error("Failed to find suitable memory type!");
     }
 
-    void create_vertexbuffer()
+    void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer & rBuffer, VkDeviceMemory & rBufferMemory)
     {
       VkBufferCreateInfo buffer_info_ = {};
       buffer_info_.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-      buffer_info_.size = sizeof(kVertices[0]) * kVertices.size();
-      buffer_info_.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+      buffer_info_.size = size;
+      buffer_info_.usage = usage;
       buffer_info_.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-      if (vkCreateBuffer(m_device, &buffer_info_, nullptr, &m_vertexbuffer) != VK_SUCCESS)
+      if (vkCreateBuffer(m_device, &buffer_info_, nullptr, &rBuffer) != VK_SUCCESS)
         throw std::runtime_error("Failed to create vertex buffer!");
 
       VkMemoryRequirements mem_requirements_;
-      vkGetBufferMemoryRequirements(m_device, m_vertexbuffer, &mem_requirements_);
+      vkGetBufferMemoryRequirements(m_device, rBuffer, &mem_requirements_);
 
       VkMemoryAllocateInfo alloc_info_ = {};
       alloc_info_.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
       alloc_info_.allocationSize = mem_requirements_.size;
-      alloc_info_.memoryTypeIndex = find_memory_type(mem_requirements_.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+      alloc_info_.memoryTypeIndex = find_memory_type(mem_requirements_.memoryTypeBits, properties);
 
-      if (vkAllocateMemory(m_device, &alloc_info_, nullptr, &m_vertexbuffer_memory) != VK_SUCCESS)
+      if (vkAllocateMemory(m_device, &alloc_info_, nullptr, &rBufferMemory) != VK_SUCCESS)
         throw std::runtime_error("Failed to allocate vertex buffer memory!");
 
-      vkBindBufferMemory(m_device, m_vertexbuffer, m_vertexbuffer_memory, 0);
+      vkBindBufferMemory(m_device, rBuffer, rBufferMemory, 0);
+    }
+
+    void copy_buffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+    {
+      VkCommandBufferAllocateInfo alloc_info_ = {};
+      alloc_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+      alloc_info_.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+      alloc_info_.commandPool = commandPool;
+      alloc_info_.commandBufferCount = 1;
+
+      VkCommandBuffer command_buffer_;
+      vkAllocateCommandBuffers(m_device, &alloc_info_, &command_buffer_);
+
+      VkCommandBufferBeginInfo begin_info_ = {};
+      begin_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+      begin_info_.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+      vkBeginCommandBuffer(command_buffer_, &begin_info_);
+
+      VkBufferCopy copy_region_ = {};
+      copy_region_.srcOffset = 0;
+      copy_region_.dstOffset = 0; // Optional
+      copy_region_.size = size;
+
+      vkCmdCopyBuffer(command_buffer_, srcBuffer, dstBuffer, 1, &copy_region_);
+
+      vkEndCommandBuffer(command_buffer_);
+    }
+
+    void create_vertexbuffer()
+    {
+      VkDeviceSize buffer_size_ = sizeof(kVertices[0]) * kVertices.size();
+
+      VkBuffer staging_buffer_;
+      VkDeviceMemory staging_buffer_memory_;
+      create_buffer(buffer_size_,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    staging_buffer_,
+                    staging_buffer_memory_);
 
       void* data_;
-      vkMapMemory(m_device, m_vertexbuffer_memory, 0, buffer_info_.size, 0, &data_);
-      memcpy(data_, kVertices.data(), (size_t)buffer_info_.size);
-      vkUnmapMemory(m_device, m_vertexbuffer_memory);
+      vkMapMemory(m_device, staging_buffer_memory_, 0, buffer_size_, 0, &data_);
+      memcpy(data_, kVertices.data(), (size_t)buffer_size_);
+      vkUnmapMemory(m_device, staging_buffer_memory_);
+
+      create_buffer(buffer_size_,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    m_vertexbuffer, m_vertexbuffer_memory);
+
+
     }
 
     VkInstance m_vk_instance;
