@@ -1094,7 +1094,7 @@ class VulkanApplication
       VkCommandBufferAllocateInfo alloc_info_ = {};
       alloc_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
       alloc_info_.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-      alloc_info_.commandPool = commandPool;
+      alloc_info_.commandPool = m_commandpool;
       alloc_info_.commandBufferCount = 1;
 
       VkCommandBuffer command_buffer_;
@@ -1114,6 +1114,16 @@ class VulkanApplication
       vkCmdCopyBuffer(command_buffer_, srcBuffer, dstBuffer, 1, &copy_region_);
 
       vkEndCommandBuffer(command_buffer_);
+
+      VkSubmitInfo submit_info_ = {};
+      submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+      submit_info_.commandBufferCount = 1;
+      submit_info_.pCommandBuffers = &command_buffer_;
+
+      vkQueueSubmit(m_graphics_queue, 1, &submit_info_, VK_NULL_HANDLE);
+      vkQueueWaitIdle(m_graphics_queue);
+
+      vkFreeCommandBuffers(m_device, m_commandpool, 1, &command_buffer_);
     }
 
     void create_vertexbuffer()
@@ -1138,7 +1148,10 @@ class VulkanApplication
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                     m_vertexbuffer, m_vertexbuffer_memory);
 
+      copy_buffer(staging_buffer_, m_vertexbuffer, buffer_size_);
 
+      vkDestroyBuffer(m_device, staging_buffer_, nullptr);
+      vkFreeMemory(m_device, staging_buffer_memory_, nullptr);
     }
 
     VkInstance m_vk_instance;
