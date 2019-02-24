@@ -76,9 +76,14 @@ class VulkanApplication
 
   const std::vector<Vertex> kVertices =
   {
-    {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+  };
+  const std::vector<uint16_t> kVertexIndices = 
+  {
+    0, 1, 2, 2, 3, 0
   };
 
   public:
@@ -104,6 +109,7 @@ class VulkanApplication
         create_framebuffers();
         create_commandpool();
         create_vertexbuffer();
+        create_indexbuffer();
         create_commandbuffers();
         create_semaphores();
         create_fences();
@@ -112,6 +118,9 @@ class VulkanApplication
     ~VulkanApplication()
     {
         cleanup_swapchain();
+
+        vkDestroyBuffer(m_device, m_indexbuffer, nullptr);
+        vkFreeMemory(m_device, m_indexbuffer_memory, nullptr);
 
         vkDestroyBuffer(m_device, m_vertexbuffer, nullptr);
         vkFreeMemory(m_device, m_vertexbuffer_memory, nullptr);
@@ -966,8 +975,10 @@ class VulkanApplication
           VkBuffer vertex_buffers_[] = { m_vertexbuffer };
           VkDeviceSize offsets_[] = { 0 };
           vkCmdBindVertexBuffers(m_commandbuffers[i], 0, 1, vertex_buffers_, offsets_);
+          vkCmdBindIndexBuffer(m_commandbuffers[i], m_indexbuffer, 0, VK_INDEX_TYPE_UINT16);
 
-          vkCmdDraw(m_commandbuffers[i], static_cast<uint32_t>(kVertices.size()), 1, 0, 0);
+          //vkCmdDraw(m_commandbuffers[i], static_cast<uint32_t>(kVertices.size()), 1, 0, 0);
+          vkCmdDrawIndexed(m_commandbuffers[i], static_cast<uint32_t>(kVertexIndices.size()), 1, 0, 0, 0);
 
           vkCmdEndRenderPass(m_commandbuffers[i]);
 
@@ -1154,6 +1165,34 @@ class VulkanApplication
       vkFreeMemory(m_device, staging_buffer_memory_, nullptr);
     }
 
+    void create_indexbuffer()
+    {
+      VkDeviceSize buffer_size_ = sizeof(kVertexIndices[0]) * kVertexIndices.size();
+
+      VkBuffer staging_buffer_;
+      VkDeviceMemory staging_buffer_memory_;
+      create_buffer(buffer_size_,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    staging_buffer_,
+                    staging_buffer_memory_);
+
+      void* data_;
+      vkMapMemory(m_device, staging_buffer_memory_, 0, buffer_size_, 0, &data_);
+      memcpy(data_, kVertexIndices.data(), (size_t)buffer_size_);
+      vkUnmapMemory(m_device, staging_buffer_memory_);
+
+      create_buffer(buffer_size_,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    m_indexbuffer, m_indexbuffer_memory);
+
+      copy_buffer(staging_buffer_, m_indexbuffer, buffer_size_);
+
+      vkDestroyBuffer(m_device, staging_buffer_, nullptr);
+      vkFreeMemory(m_device, staging_buffer_memory_, nullptr);
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1181,6 +1220,9 @@ class VulkanApplication
 
     VkBuffer m_vertexbuffer;
     VkDeviceMemory m_vertexbuffer_memory;
+
+    VkBuffer m_indexbuffer;
+    VkDeviceMemory m_indexbuffer_memory;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
