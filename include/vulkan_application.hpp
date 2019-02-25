@@ -105,6 +105,7 @@ class VulkanApplication
         create_swap_chain();
         create_image_views();
         create_render_pass();
+        create_descriptorset_layout();
         create_graphics_pipeline();
         create_framebuffers();
         create_commandpool();
@@ -118,6 +119,8 @@ class VulkanApplication
     ~VulkanApplication()
     {
         cleanup_swapchain();
+
+        vkDestroyDescriptorSetLayout(m_device, m_descriptorset_layout, nullptr);
 
         vkDestroyBuffer(m_device, m_indexbuffer, nullptr);
         vkFreeMemory(m_device, m_indexbuffer_memory, nullptr);
@@ -817,8 +820,8 @@ class VulkanApplication
         // Pipeline layout
         VkPipelineLayoutCreateInfo pipelinelayout_info_ = {};
         pipelinelayout_info_.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelinelayout_info_.setLayoutCount = 0;
-        pipelinelayout_info_.pSetLayouts = nullptr;
+        pipelinelayout_info_.setLayoutCount = 1;
+        pipelinelayout_info_.pSetLayouts = &m_descriptorset_layout;
         pipelinelayout_info_.pushConstantRangeCount = 0;
         pipelinelayout_info_.pPushConstantRanges = nullptr;
 
@@ -1193,6 +1196,24 @@ class VulkanApplication
       vkFreeMemory(m_device, staging_buffer_memory_, nullptr);
     }
 
+    void create_descriptorset_layout()
+    {
+      VkDescriptorSetLayoutBinding ubo_layout_binding_ = {};
+      ubo_layout_binding_.binding = 0;
+      ubo_layout_binding_.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      ubo_layout_binding_.descriptorCount = 1;
+      ubo_layout_binding_.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+      ubo_layout_binding_.pImmutableSamplers = nullptr;
+
+      VkDescriptorSetLayoutCreateInfo layout_info_ = {};
+      layout_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+      layout_info_.bindingCount = 1;
+      layout_info_.pBindings = &ubo_layout_binding_;
+
+      if (vkCreateDescriptorSetLayout(m_device, &layout_info_, nullptr, &m_descriptorset_layout) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create descriptor set layout!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1205,6 +1226,7 @@ class VulkanApplication
     VkFormat m_swap_chain_format;
     VkExtent2D m_swap_chain_extent;
     std::vector<VkImageView> m_swap_chain_image_views;
+    VkDescriptorSetLayout m_descriptorset_layout;
     VkPipelineLayout m_pipeline_layout;
     VkRenderPass m_render_pass;
     VkPipeline m_graphics_pipeline;
