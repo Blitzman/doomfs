@@ -13,6 +13,13 @@
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 
+struct UniformBufferObject
+{
+    glm::mat4 m_model;
+    glm::mat4 m_view;
+    glm::mat4 m_proj;
+};
+
 VkResult create_debug_utils_messengerext(
         VkInstance instance,
         const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
@@ -111,6 +118,7 @@ class VulkanApplication
         create_commandpool();
         create_vertexbuffer();
         create_indexbuffer();
+        create_uniformbuffers();
         create_commandbuffers();
         create_semaphores();
         create_fences();
@@ -121,6 +129,12 @@ class VulkanApplication
         cleanup_swapchain();
 
         vkDestroyDescriptorSetLayout(m_device, m_descriptorset_layout, nullptr);
+
+        for (size_t i = 0; i < m_swap_chain_images.size(); ++i)
+        {
+            vkDestroyBuffer(m_device, m_uniform_buffers[i], nullptr);
+            vkFreeMemory(m_device, m_uniformbuffers_memory[i], nullptr);
+        }
 
         vkDestroyBuffer(m_device, m_indexbuffer, nullptr);
         vkFreeMemory(m_device, m_indexbuffer_memory, nullptr);
@@ -1214,6 +1228,21 @@ class VulkanApplication
         throw std::runtime_error("Failed to create descriptor set layout!");
     }
 
+    void create_uniformbuffers()
+    {
+        VkDeviceSize buffer_size_ = sizeof(UniformBufferObject);
+
+        m_uniform_buffers.resize(m_swap_chain_images.size());
+        m_uniformbuffers_memory.resize(m_swap_chain_images.size());
+
+        for (size_t i = 0; i < m_swap_chain_images.size(); ++i)
+            create_buffer(buffer_size_,
+                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          m_uniform_buffers[i],
+                          m_uniformbuffers_memory[i]);
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1245,6 +1274,9 @@ class VulkanApplication
 
     VkBuffer m_indexbuffer;
     VkDeviceMemory m_indexbuffer_memory;
+
+    std::vector<VkBuffer> m_uniform_buffers;
+    std::vector<VkDeviceMemory> m_uniformbuffers_memory;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
