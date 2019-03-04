@@ -1,6 +1,7 @@
 #ifndef VULKAN_APPLICATION_HPP_
 #define VULKAN_APPLICATION_HPP_
 
+#include <chrono>
 #include <experimental/optional>
 #include <fstream>
 #include <set>
@@ -10,6 +11,8 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_NONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 
@@ -182,6 +185,8 @@ class VulkanApplication
         }
         else if (result_ != VK_SUCCESS && result_ != VK_SUBOPTIMAL_KHR)
             throw std::runtime_error("Failed to acquire swap chain image!");
+
+        update_uniformbuffer(image_index_);
 
         VkSubmitInfo submit_info_ = {};
         submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1241,6 +1246,37 @@ class VulkanApplication
                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                           m_uniform_buffers[i],
                           m_uniformbuffers_memory[i]);
+    }
+
+    void update_uniformbuffer(uint32_t currentImage)
+    {
+      static auto start_time_ = std::chrono::high_resolution_clock::now();
+
+      auto current_time_ = std::chrono::high_resolution_clock::now();
+      float time_ = std::chrono::duration<float, std::chrono::seconds::period>(current_time_ - start_time_).count();
+
+      UniformBufferObject ubo_ = {};
+      
+      ubo_.m_model = glm::rotate(glm::mat4(1.0f),
+                                 time_ * glm::radians(90.0f),
+                                 glm::vec3(0.0f, 0.0f, 1.0f));
+
+      ubo_.m_view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+                                glm::vec3(0.0f, 0.0f, 0.0f),
+                                glm::vec3(0.0f, 0.0f, 1.0f));
+
+      ubo_.m_proj = glm::perspective(glm::radians(45.0f),
+                                     m_swap_chain_extent.width / (float)m_swap_chain_extent.height,
+                                     0.1f,
+                                     10.0f);
+
+      ubo_.m_proj[1][1] *= -1;
+
+      void* data_;
+
+      vkMapMemory(m_device, m_uniformbuffers_memory[currentImage], 0, sizeof(ubo_), 0, &data_);
+      memcpy(data_, &ubo_, sizeof(ubo_));
+      vkUnmapMemory(m_device, m_uniformbuffers_memory[currentImage]);
     }
 
     VkInstance m_vk_instance;
