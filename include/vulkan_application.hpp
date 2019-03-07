@@ -123,6 +123,7 @@ class VulkanApplication
         create_indexbuffer();
         create_uniformbuffers();
         create_descriptorpool();
+        create_descriptorsets();
         create_commandbuffers();
         create_semaphores();
         create_fences();
@@ -787,7 +788,7 @@ class VulkanApplication
         rasterizer_info_.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer_info_.lineWidth = 1.0f;
         rasterizer_info_.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer_info_.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer_info_.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer_info_.depthBiasEnable = VK_FALSE;
         rasterizer_info_.depthBiasConstantFactor = 0.0f;
         rasterizer_info_.depthBiasClamp = 0.0f;
@@ -1001,6 +1002,8 @@ class VulkanApplication
           VkDeviceSize offsets_[] = { 0 };
           vkCmdBindVertexBuffers(m_commandbuffers[i], 0, 1, vertex_buffers_, offsets_);
           vkCmdBindIndexBuffer(m_commandbuffers[i], m_indexbuffer, 0, VK_INDEX_TYPE_UINT16);
+
+          vkCmdBindDescriptorSets(m_commandbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout, 0, 1, &m_descriptorsets[i], 0, nullptr);
 
           //vkCmdDraw(m_commandbuffers[i], static_cast<uint32_t>(kVertices.size()), 1, 0, 0);
           vkCmdDrawIndexed(m_commandbuffers[i], static_cast<uint32_t>(kVertexIndices.size()), 1, 0, 0, 0);
@@ -1299,6 +1302,42 @@ class VulkanApplication
             throw std::runtime_error("Failed to create descriptor pool!");
     }
 
+    void create_descriptorsets()
+    {
+        std::vector<VkDescriptorSetLayout> layouts_(m_swap_chain_images.size(), m_descriptorset_layout);
+        VkDescriptorSetAllocateInfo alloc_info_ = {};
+        alloc_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info_.descriptorPool = m_descriptorpool;
+        alloc_info_.descriptorSetCount = static_cast<uint32_t>(m_swap_chain_images.size());
+        alloc_info_.pSetLayouts = layouts_.data();
+
+        m_descriptorsets.resize(m_swap_chain_images.size());
+
+        if (vkAllocateDescriptorSets(m_device, &alloc_info_, m_descriptorsets.data()) != VK_SUCCESS)
+            throw std::runtime_error("Failed to allocate descriptor sets!");
+
+        for (size_t i = 0; i < m_swap_chain_images.size(); ++i)
+        {
+            VkDescriptorBufferInfo buffer_info_ = {};
+            buffer_info_.buffer = m_uniform_buffers[i];
+            buffer_info_.offset = 0;
+            buffer_info_.range = sizeof(UniformBufferObject);
+
+            VkWriteDescriptorSet descriptor_write_ = {};
+            descriptor_write_.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_write_.dstSet = m_descriptorsets[i];
+            descriptor_write_.dstBinding = 0;
+            descriptor_write_.dstArrayElement = 0;
+            descriptor_write_.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptor_write_.descriptorCount = 1;
+            descriptor_write_.pBufferInfo = &buffer_info_;
+            descriptor_write_.pImageInfo = nullptr;
+            descriptor_write_.pTexelBufferView = nullptr;
+
+            vkUpdateDescriptorSets(m_device, 1, &descriptor_write_, 0, nullptr);
+        }
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1334,6 +1373,7 @@ class VulkanApplication
     std::vector<VkBuffer> m_uniform_buffers;
     std::vector<VkDeviceMemory> m_uniformbuffers_memory;
     VkDescriptorPool m_descriptorpool;
+    std::vector<VkDescriptorSet> m_descriptorsets;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
