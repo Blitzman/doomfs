@@ -122,6 +122,7 @@ class VulkanApplication
         create_vertexbuffer();
         create_indexbuffer();
         create_uniformbuffers();
+        create_descriptorpool();
         create_commandbuffers();
         create_semaphores();
         create_fences();
@@ -130,6 +131,8 @@ class VulkanApplication
     ~VulkanApplication()
     {
         cleanup_swapchain();
+
+        vkDestroyDescriptorPool(m_device, m_descriptorpool, nullptr);
 
         vkDestroyDescriptorSetLayout(m_device, m_descriptorset_layout, nullptr);
 
@@ -1279,6 +1282,23 @@ class VulkanApplication
       vkUnmapMemory(m_device, m_uniformbuffers_memory[currentImage]);
     }
 
+    void create_descriptorpool()
+    {
+        VkDescriptorPoolSize pool_size_ = {};
+        pool_size_.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        pool_size_.descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
+
+        VkDescriptorPoolCreateInfo pool_info_ = {};
+        pool_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info_.poolSizeCount = 1;
+        pool_info_.pPoolSizes = &pool_size_;
+
+        pool_info_.maxSets = static_cast<uint32_t>(m_swap_chain_images.size());
+
+        if (vkCreateDescriptorPool(m_device, &pool_info_, nullptr, &m_descriptorpool) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create descriptor pool!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1313,6 +1333,7 @@ class VulkanApplication
 
     std::vector<VkBuffer> m_uniform_buffers;
     std::vector<VkDeviceMemory> m_uniformbuffers_memory;
+    VkDescriptorPool m_descriptorpool;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
