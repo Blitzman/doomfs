@@ -18,9 +18,9 @@
 
 struct UniformBufferObject
 {
-    glm::mat4 m_model;
-    glm::mat4 m_view;
-    glm::mat4 m_proj;
+    alignas(16) glm::mat4 m_model;
+    alignas(16) glm::mat4 m_view;
+    alignas(16) glm::mat4 m_proj;
 };
 
 VkResult create_debug_utils_messengerext(
