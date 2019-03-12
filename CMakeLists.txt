@@ -34,6 +34,7 @@ endif()
 include_directories(
 			include
             ~/glm/glm-0.9.9.3/glm
+            lib/stb
             ${GLFW_INCLUDE_DIRS}
             ${Vulkan_INCLUDE_DIR} 
     )
@@ -64,3 +65,12 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_SOURCE_DIR}/shaders/*
                 ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+add_custom_command(
+        TARGET doomfs PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                ${CMAKE_CURRENT_BINARY_DIR}/textures)
+add_custom_command(
+        TARGET doomfs POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/textures/*
+                ${CMAKE_CURRENT_BINARY_DIR}/textures)

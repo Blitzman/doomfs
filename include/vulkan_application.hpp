@@ -16,6 +16,9 @@
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 struct UniformBufferObject
 {
     alignas(16) glm::mat4 m_model;
@@ -119,6 +122,7 @@ class VulkanApplication
         create_graphics_pipeline();
         create_framebuffers();
         create_commandpool();
+        create_textureimage();
         create_vertexbuffer();
         create_indexbuffer();
         create_uniformbuffers();
@@ -1336,6 +1340,19 @@ class VulkanApplication
 
             vkUpdateDescriptorSets(m_device, 1, &descriptor_write_, 0, nullptr);
         }
+    }
+
+    void create_textureimage()
+    {
+        int tex_width_;
+        int tex_height_;
+        int tex_channels_;
+
+        stbi_uc* pixels_ = stbi_load("textures/texture.jpg", &tex_width_, &tex_height_, &tex_channels_, STBI_rgb_alpha);
+        VkDeviceSize image_size_ = tex_width_ * tex_height_ * 4;
+
+        if (!pixels_)
+            throw std::runtime_error("Failed to load texture image!");
     }
 
     VkInstance m_vk_instance;
