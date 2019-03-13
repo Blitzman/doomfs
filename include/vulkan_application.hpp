@@ -1342,6 +1342,41 @@ class VulkanApplication
         }
     }
 
+    void create_image(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
+    {
+        VkImageCreateInfo image_info_ = {};
+        image_info_.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_info_.imageType = VK_IMAGE_TYPE_2D;
+        image_info_.extent.width = width;
+        image_info_.extent.height = height;
+        image_info_.extent.depth = 1;
+        image_info_.mipLevels = 1;
+        image_info_.arrayLayers = 1;
+        image_info_.format = format;
+        image_info_.tiling = tiling;
+        image_info_.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        image_info_.usage = usage;
+        image_info_.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        image_info_.samples = VK_SAMPLE_COUNT_1_BIT;
+        image_info_.flags = 0;
+
+        if (vkCreateImage(m_device, &image_info_, nullptr, &image) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create image!");
+
+        VkMemoryRequirements mem_requirements_;
+        vkGetImageMemoryRequirements(m_device, image, &mem_requirements_);
+
+        VkMemoryAllocateInfo alloc_info_ = {};
+        alloc_info_.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info_.allocationSize = mem_requirements_.size;
+        alloc_info_.memoryTypeIndex = find_memory_type(mem_requirements_.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(m_device, &alloc_info_, nullptr, &imageMemory) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate image memory!");
+
+        vkBindImageMemory(m_device, image, imageMemory, 0);
+    }
+
     void create_textureimage()
     {
         int tex_width_;
@@ -1353,6 +1388,32 @@ class VulkanApplication
 
         if (!pixels_)
             throw std::runtime_error("Failed to load texture image!");
+
+        VkBuffer staging_buffer_;
+        VkDeviceMemory staging_buffer_memory_;
+
+        create_buffer(image_size_,
+                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                      staging_buffer_,
+                      staging_buffer_memory_);
+
+        void* data_;
+
+        vkMapMemory(m_device, staging_buffer_memory_, 0, image_size_, 0, &data_);
+        memcpy(data_, pixels_, static_cast<size_t>(image_size_));
+        vkUnmapMemory(m_device, staging_buffer_memory_);
+
+        stbi_image_free(pixels_);
+
+        create_image(tex_width_,
+                     tex_height_,
+                     VK_FORMAT_R8G8B8A8_UNORM,
+                     VK_IMAGE_TILING_OPTIMAL,
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                     m_texture_image,
+                     m_texture_image_memory);
     }
 
     VkInstance m_vk_instance;
@@ -1391,6 +1452,9 @@ class VulkanApplication
     std::vector<VkDeviceMemory> m_uniformbuffers_memory;
     VkDescriptorPool m_descriptorpool;
     std::vector<VkDescriptorSet> m_descriptorsets;
+
+    VkImage m_texture_image;
+    VkDeviceMemory m_texture_image_memory;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
