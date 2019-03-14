@@ -1134,39 +1134,16 @@ class VulkanApplication
 
     void copy_buffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
     {
-      VkCommandBufferAllocateInfo alloc_info_ = {};
-      alloc_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-      alloc_info_.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-      alloc_info_.commandPool = m_commandpool;
-      alloc_info_.commandBufferCount = 1;
+        VkCommandBuffer command_buffer_ = begin_single_time_commands();
 
-      VkCommandBuffer command_buffer_;
-      vkAllocateCommandBuffers(m_device, &alloc_info_, &command_buffer_);
+        VkBufferCopy copy_region_ = {};
+        copy_region_.srcOffset = 0;
+        copy_region_.dstOffset = 0; // Optional
+        copy_region_.size = size;
 
-      VkCommandBufferBeginInfo begin_info_ = {};
-      begin_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-      begin_info_.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkCmdCopyBuffer(command_buffer_, srcBuffer, dstBuffer, 1, &copy_region_);
 
-      vkBeginCommandBuffer(command_buffer_, &begin_info_);
-
-      VkBufferCopy copy_region_ = {};
-      copy_region_.srcOffset = 0;
-      copy_region_.dstOffset = 0; // Optional
-      copy_region_.size = size;
-
-      vkCmdCopyBuffer(command_buffer_, srcBuffer, dstBuffer, 1, &copy_region_);
-
-      vkEndCommandBuffer(command_buffer_);
-
-      VkSubmitInfo submit_info_ = {};
-      submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-      submit_info_.commandBufferCount = 1;
-      submit_info_.pCommandBuffers = &command_buffer_;
-
-      vkQueueSubmit(m_graphics_queue, 1, &submit_info_, VK_NULL_HANDLE);
-      vkQueueWaitIdle(m_graphics_queue);
-
-      vkFreeCommandBuffers(m_device, m_commandpool, 1, &command_buffer_);
+        end_single_time_commands(command_buffer_);
     }
 
     void create_vertexbuffer()
@@ -1414,6 +1391,77 @@ class VulkanApplication
                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                      m_texture_image,
                      m_texture_image_memory);
+    }
+
+    VkCommandBuffer begin_single_time_commands()
+    {
+        VkCommandBufferAllocateInfo alloc_info_ {};
+        alloc_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info_.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info_.commandPool = m_commandpool;
+        alloc_info_.commandBufferCount = 1;
+
+        VkCommandBuffer command_buffer_;
+        vkAllocateCommandBuffers(m_device, &alloc_info_, &command_buffer_);
+
+        VkCommandBufferBeginInfo begin_info_ = {};
+        begin_info_.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info_.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(command_buffer_, &begin_info_);
+
+        return command_buffer_;
+    }
+
+    void end_single_time_commands(VkCommandBuffer commandBuffer)
+    {
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submit_info_ = {};
+        submit_info_.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info_.commandBufferCount = 1;
+        submit_info_.pCommandBuffers = &commandBuffer;
+
+        vkQueueSubmit(m_graphics_queue, 1, &submit_info_, VK_NULL_HANDLE);
+        vkQueueWaitIdle(m_graphics_queue);
+
+        vkFreeCommandBuffers(m_device, m_commandpool, 1, &commandBuffer);
+    }
+
+    void transition_image_layout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+    {
+        VkCommandBuffer command_buffer_ = begin_single_time_commands();
+
+        VkImageMemoryBarrier barrier_ = {};
+        barrier_.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier_.oldLayout = oldLayout;
+        barrier_.newLayout = newLayout;
+
+        barrier_.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier_.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+        barrier_.image = image;
+        barrier_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier_.subresourceRange.baseMipLevel = 0;
+        barrier_.subresourceRange.levelCount = 1;
+        barrier_.subresourceRange.baseArrayLayer = 0;
+        barrier_.subresourceRange.layerCount = 1;
+
+        barrier_.srcAccessMask = 0; // TODO
+        barrier_.dstAccessMask = 0; // TODO
+
+        vkCmdPipelineBarrier(command_buffer_,
+                             0,
+                             0,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrier_);
+
+        end_single_time_commands(command_buffer_);
     }
 
     VkInstance m_vk_instance;
