@@ -137,6 +137,9 @@ class VulkanApplication
     {
         cleanup_swapchain();
 
+        vkDestroyImage(m_device, m_texture_image, nullptr);
+        vkFreeMemory(m_device, m_texture_image_memory, nullptr);
+
         vkDestroyDescriptorPool(m_device, m_descriptorpool, nullptr);
 
         vkDestroyDescriptorSetLayout(m_device, m_descriptorset_layout, nullptr);
@@ -1391,6 +1394,22 @@ class VulkanApplication
                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                      m_texture_image,
                      m_texture_image_memory);
+
+        transition_image_layout(m_texture_image,
+                                VK_FORMAT_R8G8B8A8_UNORM,
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        copy_buffer_to_image(staging_buffer_,
+                             m_texture_image,
+                             static_cast<uint32_t>(tex_width_),
+                             static_cast<uint32_t>(tex_height_));
+        transition_image_layout(m_texture_image,
+                                VK_FORMAT_R8G8B8A8_UNORM,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        vkDestroyBuffer(m_device, staging_buffer_, nullptr);
+        vkFreeMemory(m_device, staging_buffer_memory_, nullptr);
     }
 
     VkCommandBuffer begin_single_time_commands()
@@ -1450,9 +1469,31 @@ class VulkanApplication
         barrier_.srcAccessMask = 0; // TODO
         barrier_.dstAccessMask = 0; // TODO
 
+        VkPipelineStageFlags source_stage_;
+        VkPipelineStageFlags destination_stage_;
+
+        if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        {
+            barrier_.srcAccessMask = 0;
+            barrier_.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+            source_stage_ = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            destination_stage_ = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        }
+        else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            barrier_.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier_.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            source_stage_ = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            destination_stage_ = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+        else
+          throw std::invalid_argument("Unsupported layout transition!");
+
         vkCmdPipelineBarrier(command_buffer_,
-                             0,
-                             0,
+                             source_stage_,
+                             destination_stage_,
                              0,
                              0,
                              nullptr,
@@ -1462,6 +1503,31 @@ class VulkanApplication
                              &barrier_);
 
         end_single_time_commands(command_buffer_);
+    }
+
+    void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+    {
+      VkCommandBuffer command_buffer_ = begin_single_time_commands();
+
+      VkBufferImageCopy region_ = {};
+      region_.bufferOffset = 0;
+      region_.bufferRowLength = 0;
+      region_.bufferImageHeight = 0;
+      region_.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      region_.imageSubresource.mipLevel = 0;
+      region_.imageSubresource.baseArrayLayer = 0;
+      region_.imageSubresource.layerCount = 1;
+      region_.imageOffset = {0, 0, 0};
+      region_.imageExtent = { width, height, 1 };
+
+      vkCmdCopyBufferToImage(command_buffer_,
+                             buffer,
+                             image,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             1,
+                             &region_);
+
+      end_single_time_commands(command_buffer_);
     }
 
     VkInstance m_vk_instance;
