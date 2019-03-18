@@ -123,6 +123,7 @@ class VulkanApplication
         create_framebuffers();
         create_commandpool();
         create_textureimage();
+        create_textureimageview();
         create_vertexbuffer();
         create_indexbuffer();
         create_uniformbuffers();
@@ -136,6 +137,8 @@ class VulkanApplication
     ~VulkanApplication()
     {
         cleanup_swapchain();
+
+        vkDestroyImageView(m_device, m_texture_image_view, nullptr);
 
         vkDestroyImage(m_device, m_texture_image, nullptr);
         vkFreeMemory(m_device, m_texture_image_memory, nullptr);
@@ -662,28 +665,10 @@ class VulkanApplication
 
     void create_image_views()
     {
-      m_swap_chain_image_views.resize(m_swap_chain_images.size());
+        m_swap_chain_image_views.resize(m_swap_chain_images.size());
 
-      for (unsigned int i = 0; i < m_swap_chain_images.size(); ++i)
-      {
-        VkImageViewCreateInfo create_info_ = {};
-        create_info_.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        create_info_.image = m_swap_chain_images[i];
-        create_info_.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        create_info_.format = m_swap_chain_format;
-        create_info_.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        create_info_.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        create_info_.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        create_info_.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        create_info_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        create_info_.subresourceRange.baseMipLevel = 0;
-        create_info_.subresourceRange.levelCount = 1;
-        create_info_.subresourceRange.baseArrayLayer = 0;
-        create_info_.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(m_device, &create_info_, nullptr, &m_swap_chain_image_views[i]) != VK_SUCCESS)
-          throw std::runtime_error("Failed to create image view!");
-      }
+        for (unsigned int i = 0; i < m_swap_chain_images.size(); ++i)
+            m_swap_chain_image_views[i] = create_image_view(m_swap_chain_images[i], m_swap_chain_format);
     }
 
     std::vector<char> read_file(const std::string& crFilename)
@@ -1530,6 +1515,36 @@ class VulkanApplication
       end_single_time_commands(command_buffer_);
     }
 
+    void create_textureimageview()
+    {
+        m_texture_image_view = create_image_view(m_texture_image, VK_FORMAT_R8G8B8A8_UNORM);
+    }
+
+    VkImageView create_image_view(VkImage image, VkFormat format)
+    {
+        VkImageView image_view_;
+
+        VkImageViewCreateInfo create_info_ = {};
+        create_info_.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        create_info_.image = image;
+        create_info_.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        create_info_.format = format;
+        create_info_.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        create_info_.subresourceRange.baseMipLevel = 0;
+        create_info_.subresourceRange.levelCount = 1;
+        create_info_.subresourceRange.baseArrayLayer = 0;
+        create_info_.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &create_info_, nullptr, &image_view_) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create texture image view!");
+
+        return image_view_;
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1569,6 +1584,7 @@ class VulkanApplication
 
     VkImage m_texture_image;
     VkDeviceMemory m_texture_image_memory;
+    VkImageView m_texture_image_view;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
