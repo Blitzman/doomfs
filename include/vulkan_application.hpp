@@ -1214,7 +1214,7 @@ class VulkanApplication
 
       VkDescriptorSetLayoutCreateInfo layout_info_ = {};
       layout_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-      layout_info_.bindingCount = static_cast<uint32_t>(bindings.size());
+      layout_info_.bindingCount = static_cast<uint32_t>(bindings_.size());
       layout_info_.pBindings = bindings_.data();
 
       if (vkCreateDescriptorSetLayout(m_device, &layout_info_, nullptr, &m_descriptorset_layout) != VK_SUCCESS)
@@ -1270,10 +1270,10 @@ class VulkanApplication
     void create_descriptorpool()
     {
         std::array<VkDescriptorPoolSize, 2> pool_sizes_ = {};
-        pool_size_[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_size_[0].descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
-        pool_size_[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        pool_size_[1].descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
+        pool_sizes_[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        pool_sizes_[0].descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
+        pool_sizes_[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        pool_sizes_[1].descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
 
         VkDescriptorPoolCreateInfo pool_info_ = {};
         pool_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1311,20 +1311,33 @@ class VulkanApplication
             VkDescriptorImageInfo image_info_ = {};
             image_info_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_info_.imageView = m_texture_image_view;
-            image_info_.sampler = m_texture
+            image_info_.sampler = m_texture_sampler;
 
-            VkWriteDescriptorSet descriptor_write_ = {};
-            descriptor_write_.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptor_write_.dstSet = m_descriptorsets[i];
-            descriptor_write_.dstBinding = 0;
-            descriptor_write_.dstArrayElement = 0;
-            descriptor_write_.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptor_write_.descriptorCount = 1;
-            descriptor_write_.pBufferInfo = &buffer_info_;
-            descriptor_write_.pImageInfo = nullptr;
-            descriptor_write_.pTexelBufferView = nullptr;
+            std::array<VkWriteDescriptorSet, 2> descriptor_writes_ = {};
 
-            vkUpdateDescriptorSets(m_device, 1, &descriptor_write_, 0, nullptr);
+            descriptor_writes_[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_writes_[0].dstSet = m_descriptorsets[i];
+            descriptor_writes_[0].dstBinding = 0;
+            descriptor_writes_[0].dstArrayElement = 0;
+            descriptor_writes_[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptor_writes_[0].descriptorCount = 1;
+            descriptor_writes_[0].pBufferInfo = &buffer_info_;
+            descriptor_writes_[0].pImageInfo = nullptr;
+            descriptor_writes_[0].pTexelBufferView = nullptr;
+
+            descriptor_writes_[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_writes_[1].dstSet = m_descriptorsets[i];
+            descriptor_writes_[1].dstBinding = 1;
+            descriptor_writes_[1].dstArrayElement = 0;
+            descriptor_writes_[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptor_writes_[1].descriptorCount = 1;
+            descriptor_writes_[1].pImageInfo = &image_info_;
+
+            vkUpdateDescriptorSets(m_device,
+                                   static_cast<uint32_t>(descriptor_writes_.size()),
+                                   descriptor_writes_.data(),
+                                   0,
+                                   nullptr);
         }
     }
 
