@@ -1199,10 +1199,19 @@ class VulkanApplication
       ubo_layout_binding_.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       ubo_layout_binding_.pImmutableSamplers = nullptr;
 
+      VkDescriptorSetLayoutBinding sampler_layout_binding_ = {};
+      sampler_layout_binding_.binding = 1;
+      sampler_layout_binding_.descriptorCount = 1;
+      sampler_layout_binding_.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+      sampler_layout_binding_.pImmutableSamplers = nullptr;
+      sampler_layout_binding_.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+      std::array<VkDescriptorSetLayoutBinding, 2> bindings_ = { ubo_layout_binding_, sampler_layout_binding_ };
+
       VkDescriptorSetLayoutCreateInfo layout_info_ = {};
       layout_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-      layout_info_.bindingCount = 1;
-      layout_info_.pBindings = &ubo_layout_binding_;
+      layout_info_.bindingCount = static_cast<uint32_t>(bindings.size());
+      layout_info_.pBindings = bindings_.data();
 
       if (vkCreateDescriptorSetLayout(m_device, &layout_info_, nullptr, &m_descriptorset_layout) != VK_SUCCESS)
         throw std::runtime_error("Failed to create descriptor set layout!");
@@ -1256,14 +1265,17 @@ class VulkanApplication
 
     void create_descriptorpool()
     {
-        VkDescriptorPoolSize pool_size_ = {};
-        pool_size_.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_size_.descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
+        std::array<VkDescriptorPoolSize, 2> pool_sizes_ = {};
+        pool_size_[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        pool_size_[0].descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
+        pool_size_[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        pool_size_[1].descriptorCount = static_cast<uint32_t>(m_swap_chain_images.size());
 
         VkDescriptorPoolCreateInfo pool_info_ = {};
         pool_info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pool_info_.poolSizeCount = 1;
-        pool_info_.pPoolSizes = &pool_size_;
+        pool_info_.poolSizeCount = static_cast<uint32_t>(pool_sizes_.size());
+        pool_info_.pPoolSizes = pool_sizes_.data();
+        pool_info_.maxSets = static_cast<uint32_t>(m_swap_chain_images.size());
 
         pool_info_.maxSets = static_cast<uint32_t>(m_swap_chain_images.size());
 
@@ -1291,6 +1303,11 @@ class VulkanApplication
             buffer_info_.buffer = m_uniform_buffers[i];
             buffer_info_.offset = 0;
             buffer_info_.range = sizeof(UniformBufferObject);
+
+            VkDescriptorImageInfo image_info_ = {};
+            image_info_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_info_.imageView = m_texture_image_view;
+            image_info_.sampler = m_texture
 
             VkWriteDescriptorSet descriptor_write_ = {};
             descriptor_write_.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
