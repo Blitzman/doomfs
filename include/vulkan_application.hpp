@@ -124,6 +124,7 @@ class VulkanApplication
         create_commandpool();
         create_textureimage();
         create_textureimageview();
+        create_texturesampler();
         create_vertexbuffer();
         create_indexbuffer();
         create_uniformbuffers();
@@ -138,6 +139,7 @@ class VulkanApplication
     {
         cleanup_swapchain();
 
+        vkDestroySampler(m_device, m_texture_sampler, nullptr);
         vkDestroyImageView(m_device, m_texture_image_view, nullptr);
 
         vkDestroyImage(m_device, m_texture_image, nullptr);
@@ -445,7 +447,8 @@ class VulkanApplication
       return device_properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
               qf_indices_.is_complete() &&
               extensions_supported_ &&
-              swap_chain_adequate_;
+              swap_chain_adequate_ &&
+              device_features_.samplerAnisotropy;
     }
 
     void pick_physical_device()
@@ -494,6 +497,7 @@ class VulkanApplication
       }
 
       VkPhysicalDeviceFeatures device_features_ = {};
+      device_features_.samplerAnisotropy = VK_TRUE;
 
       VkDeviceCreateInfo device_create_info_ = {};
       device_create_info_.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1562,6 +1566,30 @@ class VulkanApplication
         return image_view_;
     }
 
+    void create_texturesampler()
+    {
+        VkSamplerCreateInfo sampler_info_ = {};
+        sampler_info_.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler_info_.magFilter = VK_FILTER_LINEAR;
+        sampler_info_.minFilter = VK_FILTER_LINEAR;
+        sampler_info_.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info_.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info_.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info_.anisotropyEnable = VK_TRUE;
+        sampler_info_.maxAnisotropy = 16;
+        sampler_info_.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        sampler_info_.unnormalizedCoordinates = VK_FALSE;
+        sampler_info_.compareEnable = VK_FALSE;
+        sampler_info_.compareOp = VK_COMPARE_OP_ALWAYS;
+        sampler_info_.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler_info_.mipLodBias = 0.0f;
+        sampler_info_.minLod = 0.0f;
+        sampler_info_.maxLod = 0.0f;
+
+        if (vkCreateSampler(m_device, &sampler_info_, nullptr, &m_texture_sampler) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create texture sampler!");
+    }
+
     VkInstance m_vk_instance;
     VkDebugUtilsMessengerEXT m_callback;
     VkSurfaceKHR m_surface;
@@ -1602,6 +1630,7 @@ class VulkanApplication
     VkImage m_texture_image;
     VkDeviceMemory m_texture_image_memory;
     VkImageView m_texture_image_view;
+    VkSampler m_texture_sampler;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
