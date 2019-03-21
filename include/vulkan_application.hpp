@@ -10,7 +10,7 @@
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_NONE
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/vec4.hpp>
@@ -89,14 +89,20 @@ class VulkanApplication
 
   const std::vector<Vertex> kVertices =
   {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
   };
   const std::vector<uint16_t> kVertexIndices = 
   {
-    0, 1, 2, 2, 3, 0
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
   };
 
   public:
@@ -122,6 +128,7 @@ class VulkanApplication
         create_graphics_pipeline();
         create_framebuffers();
         create_commandpool();
+        create_depth_resources();
         create_textureimage();
         create_textureimageview();
         create_texturesampler();
@@ -672,7 +679,7 @@ class VulkanApplication
         m_swap_chain_image_views.resize(m_swap_chain_images.size());
 
         for (unsigned int i = 0; i < m_swap_chain_images.size(); ++i)
-            m_swap_chain_image_views[i] = create_image_view(m_swap_chain_images[i], m_swap_chain_format);
+            m_swap_chain_image_views[i] = create_image_view(m_swap_chain_images[i], m_swap_chain_format, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     std::vector<char> read_file(const std::string& crFilename)
@@ -1485,6 +1492,17 @@ class VulkanApplication
         barrier_.subresourceRange.baseArrayLayer = 0;
         barrier_.subresourceRange.layerCount = 1;
 
+
+        if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+        {
+            barrier_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+            if (has_stencil_component(format))
+                barrier_.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+        else
+            barrier_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
         barrier_.srcAccessMask = 0; // TODO
         barrier_.dstAccessMask = 0; // TODO
 
@@ -1506,6 +1524,14 @@ class VulkanApplication
 
             source_stage_ = VK_PIPELINE_STAGE_TRANSFER_BIT;
             destination_stage_ = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+        else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+        {
+            barrier_.srcAccessMask = 0;
+            barrier_.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+            source_stage_ = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            destination_stage_ = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         }
         else
           throw std::invalid_argument("Unsupported layout transition!");
@@ -1551,10 +1577,10 @@ class VulkanApplication
 
     void create_textureimageview()
     {
-        m_texture_image_view = create_image_view(m_texture_image, VK_FORMAT_R8G8B8A8_UNORM);
+        m_texture_image_view = create_image_view(m_texture_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
-    VkImageView create_image_view(VkImage image, VkFormat format)
+    VkImageView create_image_view(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
     {
         VkImageView image_view_;
 
@@ -1567,7 +1593,7 @@ class VulkanApplication
         create_info_.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         create_info_.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
         create_info_.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        create_info_.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        create_info_.subresourceRange.aspectMask = aspectFlags;
         create_info_.subresourceRange.baseMipLevel = 0;
         create_info_.subresourceRange.levelCount = 1;
         create_info_.subresourceRange.baseArrayLayer = 0;
@@ -1601,6 +1627,54 @@ class VulkanApplication
 
         if (vkCreateSampler(m_device, &sampler_info_, nullptr, &m_texture_sampler) != VK_SUCCESS)
             throw std::runtime_error("Failed to create texture sampler!");
+    }
+
+    VkFormat find_supported_format(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
+    {
+        for (VkFormat format : candidates)
+        {
+            VkFormatProperties props_;
+            vkGetPhysicalDeviceFormatProperties(m_physical_device, format, &props_);
+
+            if (tiling == VK_IMAGE_TILING_LINEAR && (props_.linearTilingFeatures & features) == features)
+                return format;
+            else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props_.optimalTilingFeatures & features) == features)
+                return format;
+        }
+
+        throw std::runtime_error("Failed to find supported format!");
+    }
+
+    bool has_stencil_component(VkFormat format)
+    {
+        return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+    }
+
+    VkFormat find_depth_format()
+    {
+        return find_supported_format({VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+                                     VK_IMAGE_TILING_OPTIMAL,
+                                     VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    }
+
+    void create_depth_resources()
+    {
+        VkFormat depth_format_ = find_depth_format();
+
+        create_image(m_swap_chain_extent.width,
+                     m_swap_chain_extent.height,
+                     depth_format_,
+                     VK_IMAGE_TILING_OPTIMAL,
+                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                     m_depth_image,
+                     m_depth_image_memory);
+
+        m_depth_image_view = create_image_view(m_depth_image, depth_format_, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        transition_image_layout(m_depth_image, depth_format_, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+
     }
 
     VkInstance m_vk_instance;
@@ -1644,6 +1718,10 @@ class VulkanApplication
     VkDeviceMemory m_texture_image_memory;
     VkImageView m_texture_image_view;
     VkSampler m_texture_sampler;
+
+    VkImage m_depth_image;
+    VkDeviceMemory m_depth_image_memory;
+    VkImageView m_depth_image_view;
 
     std::shared_ptr<GLFWwindow*> m_window;
 };
