@@ -882,27 +882,38 @@ class VulkanApplication
     void create_render_pass()
     {
         VkAttachmentDescription color_attachment_ = {};
-
         color_attachment_.format = m_swap_chain_format;
         color_attachment_.samples = VK_SAMPLE_COUNT_1_BIT;
-
         color_attachment_.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         color_attachment_.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
         color_attachment_.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         color_attachment_.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
         color_attachment_.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         color_attachment_.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        VkAttachmentDescription depth_attachment_ = {};
+        depth_attachment_.format = find_depth_format();
+        depth_attachment_.samples = VK_SAMPLE_COUNT_1_BIT;
+        depth_attachment_.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment_.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment_.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depth_attachment_.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment_.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth_attachment_.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         VkAttachmentReference color_attachment_ref_ = {};
         color_attachment_ref_.attachment = 0;
         color_attachment_ref_.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+        VkAttachmentReference depth_attachment_ref_ = {};
+        depth_attachment_ref_.attachment = 1;
+        depth_attachment_ref_.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
         VkSubpassDescription subpass_ = {};
         subpass_.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass_.colorAttachmentCount = 1;
         subpass_.pColorAttachments = &color_attachment_ref_;
+        subpass_.pDepthStencilAttachment = &depth_attachment_ref_;
 
         VkSubpassDependency dependency_ = {};
         dependency_.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -912,10 +923,11 @@ class VulkanApplication
         dependency_.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependency_.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
+        std::array<VkAttachmentDescription, 2> attachments_ = {color_attachment_, depth_attachment_};
         VkRenderPassCreateInfo render_pass_info_ = {};
         render_pass_info_.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        render_pass_info_.attachmentCount = 1;
-        render_pass_info_.pAttachments = &color_attachment_;
+        render_pass_info_.attachmentCount = static_cast<uint32_t>(attachments_.size());
+        render_pass_info_.pAttachments = attachments_.data();
         render_pass_info_.subpassCount = 1;
         render_pass_info_.pSubpasses = &subpass_;
         render_pass_info_.dependencyCount = 1;
